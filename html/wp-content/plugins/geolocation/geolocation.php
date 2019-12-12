@@ -15,7 +15,7 @@ License: GPL2
               2018-2019 Yann Michel (email : geolocation@yann-michel.de)
 
     This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License, version 2, as 
+    it under the terms of the GNU General Public License, version 2, as
     published by the Free Software Foundation.
 
     This program is distributed in the hope that it will be useful,
@@ -77,7 +77,7 @@ function geolocation_custom_admin_notice() {
 	<div class="notice notice-error">
 		<p><?php _e('Google Maps API key is missing for', 'geolocation'); ?> <a href="options-general.php?page=geolocation">Geolocation</a>!</p>
 	</div>
-<?php 
+<?php
     }
 }
 add_action('admin_notices', 'geolocation_custom_admin_notice');
@@ -91,7 +91,7 @@ function geolocation_add_custom_box() {
 }
 
 function geolocation_inner_custom_box() {
-    echo '<input type="hidden" id="geolocation_nonce" name="geolocation_nonce" value="'. 
+    echo '<input type="hidden" id="geolocation_nonce" name="geolocation_nonce" value="'.
     wp_create_nonce(plugin_basename(__FILE__)).'" />';
     echo '
 		<label class="screen-reader-text" for="geolocation-address">Geolocation</label>
@@ -118,9 +118,9 @@ function geolocation_inner_custom_box() {
 function geolocation_old_custom_box() {
     echo '<div class="dbx-b-ox-wrapper">'."\n";
     echo '<fieldset id="geolocation_fieldsetid" class="dbx-box">'."\n";
-    echo '<div class="dbx-h-andle-wrapper"><h3 class="dbx-handle">'. 
-        __('Geolocation', 'geolocation')."</h3></div>";   
-   
+    echo '<div class="dbx-h-andle-wrapper"><h3 class="dbx-handle">'.
+        __('Geolocation', 'geolocation')."</h3></div>";
+
     echo '<div class="dbx-c-ontent-wrapper"><div class="dbx-content">';
 
     geolocation_inner_custom_box();
@@ -142,11 +142,11 @@ function geolocation_save_postdata($post_id) {
     $address = reverse_geocode($latitude, $longitude);
     $public = $_POST['geolocation-public'];
     $on = $_POST['geolocation-on'];
-  
+
     if ((!empty($latitude)) && (!empty($longitude))) {
         update_post_meta($post_id, 'geo_latitude', $latitude);
         update_post_meta($post_id, 'geo_longitude', $longitude);
-  	
+
         if ($address != '') {
             update_post_meta($post_id, 'geo_address', $address);
         }
@@ -154,14 +154,14 @@ function geolocation_save_postdata($post_id) {
             update_post_meta($post_id, 'geo_enabled', 1);
         } else {
             update_post_meta($post_id, 'geo_enabled', 0);
-        } 
+        }
         if ($public) {
                 update_post_meta($post_id, 'geo_public', 1);
         } else {
                 update_post_meta($post_id, 'geo_public', 0);
         }
     }
-  
+
     return $post_id;
 }
 
@@ -194,7 +194,7 @@ function admin_head() {
 					else
 						$j("#geolocation-public").attr('checked', true);
 
-                    if (isGeoEnabledon === '0')
+                    if (isGeoEnabled === '0')
 						disableGeo();
 					else
 						enableGeo();
@@ -206,7 +206,7 @@ function admin_head() {
 						$j("#geolocation-longitude").val(center.lng());
 						reverseGeocode(center);
 					}
-						
+
 				 	var myOptions = {
 				      'zoom': <?php echo $zoom; ?>,
 				      'center': center,
@@ -217,17 +217,17 @@ function admin_head() {
 						new google.maps.Size(39, 23),
 						new google.maps.Point(0, 0),
 						new google.maps.Point(12, 25));
-						
-				    var map = new google.maps.Map(document.getElementById('geolocation-map'), myOptions);	
+
+				    var map = new google.maps.Map(document.getElementById('geolocation-map'), myOptions);
 					var marker = new google.maps.Marker({
-						position: center, 
-						map: map, 
+						position: center,
+						map: map,
 						title:'Post Location'<?php if ((bool) get_option('geolocation_wp_pin')) { ?>,
 						icon: image,
 						shadow: shadow
 					<?php } ?>
 					});
-					
+
 					if((!hasLocation) && (google.loader.ClientLocation)) {
 				      center = new google.maps.LatLng(google.loader.ClientLocation.latitude, google.loader.ClientLocation.longitude);
 				      reverseGeocode(center);
@@ -235,11 +235,11 @@ function admin_head() {
 				    else if(!hasLocation) {
 				    	map.setZoom(1);
 				    }
-					
+
 					google.maps.event.addListener(map, 'click', function(event) {
 						placeMarker(event.latLng);
 					});
-					
+
 					var currentAddress;
 					var customAddress = false;
 					$j("#geolocation-address").click(function(){
@@ -247,7 +247,7 @@ function admin_head() {
                         if (currentAddress !== '')
 							$j("#geolocation-address").val('');
 					});
-					
+
 					$j("#geolocation-load").click(function(){
                         if ($j("#geolocation-address").val() !== '') {
 							customAddress = true;
@@ -255,20 +255,20 @@ function admin_head() {
 							geocode(currentAddress);
 						}
 					});
-					
+
 					$j("#geolocation-address").keyup(function(e) {
                         if (e.keyCode === 13)
 							$j("#geolocation-load").click();
 					});
-					
+
 					$j("#geolocation-enabled").click(function(){
 						enableGeo();
 					});
-					
+
 					$j("#geolocation-disabled").click(function(){
 						disableGeo();
 					});
-									
+
 					function placeMarker(location) {
 						marker.setPosition(location);
 						map.setCenter(location);
@@ -276,11 +276,11 @@ function admin_head() {
 							$j("#geolocation-latitude").val(location.lat());
 							$j("#geolocation-longitude").val(location.lng());
 						}
-						
+
 						if(!customAddress)
 							reverseGeocode(location);
 					}
-					
+
 					function geocode(address) {
 						var geocoder = new google.maps.Geocoder();
 					    if (geocoder) {
@@ -296,7 +296,7 @@ function admin_head() {
 						}
 						$j("#geodata").html(latitude + ', ' + longitude);
 					}
-					
+
 					function reverseGeocode(location) {
 						var geocoder = new google.maps.Geocoder();
 					    if (geocoder) {
@@ -315,7 +315,7 @@ function admin_head() {
 							});
 						}
 					}
-					
+
 					function enableGeo() {
 						$j("#geolocation-address").removeAttr('disabled');
 						$j("#geolocation-load").removeAttr('disabled');
@@ -330,7 +330,7 @@ function admin_head() {
                         if (isPublic === '1')
 							$j("#geolocation-public").attr('checked', 'checked');
 					}
-					
+
 					function disableGeo() {
 						$j("#geolocation-address").attr('disabled', 'disabled');
 						$j("#geolocation-load").attr('disabled', 'disabled');
@@ -339,7 +339,7 @@ function admin_head() {
 						$j("#geolocation-map").css('-moz-opacity', '0.5');
 						$j("#geolocation-map").attr('readonly', 'readonly');
 						$j("#geolocation-public").attr('disabled', 'disabled');
-						
+
 						$j("#geolocation-enabled").removeAttr('checked');
 						$j("#geolocation-disabled").attr('checked', 'checked');
 
@@ -349,7 +349,7 @@ function admin_head() {
 				});
 			});
 		</script>
-<?php		
+<?php
 }
 
 function get_geo_div() {
@@ -367,7 +367,7 @@ function add_geo_div() {
 function add_geo_support() {
     global $posts;
     if ((esc_attr((string) get_option('geolocation_map_display')) <> 'plain') || (is_user_logged_in())) {
-	
+
         // To do: add support for multiple Map API providers
         switch (PROVIDER) {
             case 'google':
@@ -502,9 +502,9 @@ function display_location($content) {
 
 function display_location_page($content) {
     global $post;
-    $html = ''; 
+    $html = '';
     settype($html, "string");
-    $script = ''; 
+    $script = '';
     settype($script, "string");
     settype($category, "string");
     $category = (string) get_post_meta($post->ID, 'category', true);
@@ -548,7 +548,7 @@ function display_location_page($content) {
     $post_query = new WP_Query($pargs);
     while ($post_query->have_posts()) {
         $post_query->the_post();
-        $post_id = (integer) get_the_ID(); 
+        $post_id = (integer) get_the_ID();
         $postLatitude = (string) get_post_meta($post_id, 'geo_latitude', true);
         $postLongitude = (string) get_post_meta($post_id, 'geo_longitude', true);
         $script = $script."
@@ -561,7 +561,7 @@ function display_location_page($content) {
     }
     $script = $script."
        map.fitBounds(bounds);
-</script>";    
+</script>";
 
     if ($counter > 0) {
         $width = esc_attr((string) get_option('geolocation_map_width_page'));
@@ -576,9 +576,9 @@ function display_location_page($content) {
 function display_location_post($content) {
     default_settings();
     global $post;
-    $html = ''; 
+    $html = '';
     settype($html, "string");
-    
+
     $latitude = clean_coordinate(get_post_meta($post->ID, 'geo_latitude', true));
     $longitude = clean_coordinate(get_post_meta($post->ID, 'geo_longitude', true));
     $on = (bool) get_post_meta($post->ID, 'geo_enabled', true);
@@ -590,12 +590,12 @@ function display_location_post($content) {
         $content = str_replace(SHORTCODE, '', $content);
         return $content;
     }
-    
+
     $address = (string) get_post_meta($post->ID, 'geo_address', true);
     if (empty($address)) {
         $address = reverse_geocode($latitude, $longitude);
     }
-    
+
     switch (esc_attr((string) get_option('geolocation_map_display')))
     {
         case 'plain':
@@ -611,7 +611,7 @@ function display_location_post($content) {
             $html = '<pre> $latitude: '.$latitude.'<br> $longitude: '.$longitude.'<br> $address: '.$address.'<br> $on: '.(string) $on.'<br> $public: '.(string) $public.'</pre>';
             break;
     }
-        
+
     switch (esc_attr((string) get_option('geolocation_map_position')))
     {
         case 'before':
@@ -650,7 +650,7 @@ function updateGeolocationAddresses() {
     );
 
     $post_query = new WP_Query($args);
-    if ($post_query->have_posts()) { 
+    if ($post_query->have_posts()) {
         $counter = 0;
         while ($post_query->have_posts()) {
             $post_query->the_post();
@@ -706,7 +706,7 @@ function reverse_geocode($latitude, $longitude) {
                 } else if ((in_array('country', $addressPart->types))) {
                         $country = $addressPart->long_name;
                 }
-                }    
+                }
         }
     }
     return buildAddress($city, $state, $country);
@@ -770,7 +770,7 @@ function default_settings() {
     }
     if (!get_option('geolocation_map_position')) {
             update_option('geolocation_map_position', 'after');
-    }        
+    }
     if (!get_option('geolocation_map_display')) {
             update_option('geolocation_map_display', 'link');
     }
@@ -812,7 +812,7 @@ function geolocation_settings_page() {
 			zoomlevel = document.getElementById(id).value;
 			pin_click();
 		}
-		
+
 		function pin_click() {
 			var div = document.getElementById('zoom_level_sample');
 			file = path + zoomlevel + '.png';
@@ -822,7 +822,7 @@ function geolocation_settings_page() {
 		}
 	</script>
 	<div class="wrap"><h2><?php _e('Geolocation Plugin Settings', 'geolocation'); ?></h2></div>
-	
+
 	<form method="post" action="options.php">
     <?php settings_fields('geolocation-settings-group'); ?>
     <table class="form-table">
@@ -848,13 +848,13 @@ function geolocation_settings_page() {
                 <label for="geolocation_map_display_plain"><?php _e('Plain text.', 'geolocation'); ?></label><br/>
                                 <input type="radio" id="geolocation_map_display_link" name="geolocation_map_display" value="link"<?php is_value('geolocation_map_display', 'link'); ?>>
                 <label for="geolocation_map_display_link"><?php _e('Simple link w/hover.', 'geolocation'); ?></label><br/>
-                </td>        
-        </tr>                        
+                </td>
+        </tr>
         <tr valign="top">
 	        <th scope="row"><?php _e('Default Zoom Level', 'geolocation'); ?></th>
-	        <td class="zoom">        	
+	        <td class="zoom">
 				<input type="radio" id="geolocation_default_zoom_globe" name="geolocation_default_zoom" value="1"<?php is_value('geolocation_default_zoom', '1'); ?> onclick="javascipt:swap_zoom_sample(this.id);"><label for="geolocation_default_zoom_globe"><?php _e('Globe', 'geolocation'); ?></label>
-				
+
 				<input type="radio" id="geolocation_default_zoom_country" name="geolocation_default_zoom" value="3"<?php is_value('geolocation_default_zoom', '3'); ?> onclick="javascipt:swap_zoom_sample(this.id);"><label for="geolocation_default_zoom_country"><?php _e('Country', 'geolocation'); ?></label>
 				<input type="radio" id="geolocation_default_zoom_state" name="geolocation_default_zoom" value="6"<?php is_value('geolocation_default_zoom', '6'); ?> onclick="javascipt:swap_zoom_sample(this.id);"><label for="geolocation_default_zoom_state"><?php _e('State', 'geolocation'); ?></label>
 				<input type="radio" id="geolocation_default_zoom_city" name="geolocation_default_zoom" value="9"<?php is_value('geolocation_default_zoom', '9'); ?> onclick="javascipt:swap_zoom_sample(this.id);"><label for="geolocation_default_zoom_city"><?php _e('City', 'geolocation'); ?></label>
@@ -866,7 +866,7 @@ function geolocation_settings_page() {
         </tr>
         <tr valign="top">
         	<th scope="row"></th>
-        	<td class="position">        	
+        	<td class="position">
 				<input type="checkbox" id="geolocation_wp_pin" name="geolocation_wp_pin" value="1" <?php is_checked('geolocation_wp_pin'); ?> onclick="javascript:pin_click();"><label for="geolocation_wp_pin"><?php _e('Show your support for WordPress by using the WordPress map pin.', 'geolocation'); ?></label>
 	        </td>
         </tr>
@@ -879,7 +879,7 @@ function geolocation_settings_page() {
         </tr>
         <tr valign="top">
         	<th scope="row">Google Maps API key</th>
-        	<td class="apikey">        	
+        	<td class="apikey">
 	        	<input type="text" name="geolocation_google_maps_api_key" value="<?php echo esc_attr((string) get_option('geolocation_google_maps_api_key')); ?>" />
         </tr>
         <tr valign="top">
@@ -894,7 +894,7 @@ function geolocation_settings_page() {
                 </td>
         </tr>
     </table>
-    
+
     <p class="submit">
     <input type="submit" class="button-primary" value="<?php _e('Save Changes', 'geolocation') ?>" />
     </p>
@@ -908,7 +908,7 @@ function geolocation_settings_page() {
 		<img src="<?php echo esc_url(plugins_url('img/zoom/9.png', __FILE__)); ?>"/>
 		<img src="<?php echo esc_url(plugins_url('img/zoom/16.png', __FILE__)); ?>"/>
 		<img src="<?php echo esc_url(plugins_url('img/zoom/18.png', __FILE__)); ?>"/>
-		
+
 		<img src="<?php echo esc_url(plugins_url('img/zoom/wp_1.png', __FILE__)); ?>"/>
 		<img src="<?php echo esc_url(plugins_url('img/zoom/wp_3.png', __FILE__)); ?>"/>
 		<img src="<?php echo esc_url(plugins_url('img/zoom/wp_6.png', __FILE__)); ?>"/>
