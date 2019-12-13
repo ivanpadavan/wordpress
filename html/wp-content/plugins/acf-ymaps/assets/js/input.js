@@ -1,6 +1,6 @@
 (function($){
-	
-	
+
+
 	/**
 	*  initialize_field
 	*
@@ -12,16 +12,16 @@
 	*  @param	n/a
 	*  @return	n/a
 	*/
-	
+
 	function initialize_field( $field ) {
-		
+
 		//$field.doStuff();
-		
+
 	}
-	
-	
+
+
 	if( typeof acf.add_action !== 'undefined' ) {
-	
+
 		/*
 		*  ready & append (ACF5)
 		*
@@ -32,13 +32,13 @@
 		*  @param	n/a
 		*  @return	n/a
 		*/
-		
-		acf.add_action('ready_field/type=FIELD_NAME', initialize_field);
-		acf.add_action('append_field/type=FIELD_NAME', initialize_field);
-		
-		
+
+		acf.add_action('ready_field/type=ymaps', initialize_field);
+		acf.add_action('append_field/type=ymaps', initialize_field);
+
+
 	} else {
-		
+
 		/*
 		*  acf/setup_fields (ACF4)
 		*
@@ -48,19 +48,19 @@
 		*  @param	element		An element which contains the new HTML
 		*  @return	n/a
 		*/
-		
+
 		$(document).on('acf/setup_fields', function(e, postbox){
-			
+
 			// find all relevant fields
-			$(postbox).find('.field[data-field_type="FIELD_NAME"]').each(function(){
-				
+			$(postbox).find('.field[data-field_type="ymaps"]').each(function(){
+
 				// initialize
 				initialize_field( $(this) );
-				
+
 			});
-		
+
 		});
-	
+
 	}
 
 })(jQuery);
