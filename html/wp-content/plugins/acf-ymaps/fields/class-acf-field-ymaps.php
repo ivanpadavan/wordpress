@@ -44,7 +44,7 @@ class acf_field_ymaps extends acf_field {
 		*  category (string) basic | content | choice | relational | jquery | layout | CUSTOM GROUP NAME
 		*/
 
-		$this->category = 'basic';
+		$this->category = 'jquery';
 
 
 		/*
@@ -52,8 +52,11 @@ class acf_field_ymaps extends acf_field {
 		*/
 
 		$this->defaults = array(
-			'font_size'	=> 14,
-		);
+		'height'		=> '400',
+		'center_lat'	=> '-37.81411',
+		'center_lng'	=> '144.96328',
+		'zoom'			=> '14'
+	);
 
 
 		/*
@@ -104,13 +107,48 @@ class acf_field_ymaps extends acf_field {
 		*  Please note that you must also have a matching $defaults value for the field name (font_size)
 		*/
 
-		acf_render_field_setting( $field, array(
-			'label'			=> __('Font Size','TEXTDOMAIN'),
-			'instructions'	=> __('Customise the input font size','TEXTDOMAIN'),
-			'type'			=> 'number',
-			'name'			=> 'font_size',
-			'prepend'		=> 'px',
-		));
+	  // center_lat
+	  acf_render_field_setting( $field, array(
+		  'label'			=> __('Center','acf'),
+		  'instructions'	=> __('Center the initial map','acf'),
+		  'type'			=> 'text',
+		  'name'			=> 'center_lat',
+		  'prepend'		=> 'lat',
+		  'placeholder'	=> $this->default_values['center_lat']
+	  ));
+
+
+	  // center_lng
+	  acf_render_field_setting( $field, array(
+		  'label'			=> __('Center','acf'),
+		  'instructions'	=> __('Center the initial map','acf'),
+		  'type'			=> 'text',
+		  'name'			=> 'center_lng',
+		  'prepend'		=> 'lng',
+		  'placeholder'	=> $this->default_values['center_lng'],
+		  '_append' 		=> 'center_lat'
+	  ));
+
+
+	  // zoom
+	  acf_render_field_setting( $field, array(
+		  'label'			=> __('Zoom','acf'),
+		  'instructions'	=> __('Set the initial zoom level','acf'),
+		  'type'			=> 'text',
+		  'name'			=> 'zoom',
+		  'placeholder'	=> $this->default_values['zoom']
+	  ));
+
+
+	  // allow_null
+	  acf_render_field_setting( $field, array(
+		  'label'			=> __('Height','acf'),
+		  'instructions'	=> __('Customize the map height','acf'),
+		  'type'			=> 'text',
+		  'name'			=> 'height',
+		  'append'		=> 'px',
+		  'placeholder'	=> $this->default_values['height']
+	  ));
 
 	}
 
@@ -149,7 +187,7 @@ class acf_field_ymaps extends acf_field {
 		*/
 
 		?>
-		<input type="text" name="<?php echo esc_attr($field['name']) ?>" value="<?php echo esc_attr($field['value']) ?>" style="font-size:<?php echo $field['font_size'] ?>px;" />
+		<input type="text" name="<?php echo esc_attr($field['name']) ?>" value="<?php echo esc_attr($field['value']) ?>" />
 		<?php
 	}
 
