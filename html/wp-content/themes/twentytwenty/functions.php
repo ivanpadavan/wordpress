@@ -24,6 +24,149 @@
  * Block Editor Settings
  */
 
+add_action( 'init', 'define_custom_types_structure' );
+function define_custom_types_structure() {
+	register_post_type('event', array(
+	  'label' => 'Event',
+    'rewrite' => true,
+    'public' => true,
+    'has_archive' => true,
+  ));
+	register_taxonomy('place', 'event', array(
+	  'label' => 'Place',
+    'public' => true,
+    'rewrite' => true,
+  ));
+
+	if( function_exists('acf_add_local_field_group') ):
+
+		acf_add_local_field_group(array(
+			'key' => 'group_5df3766ec6a13',
+			'title' => 'event',
+			'fields' => array(
+				array(
+					'key' => 'field_5df37f49e8251',
+					'label' => 'place',
+					'name' => 'place',
+					'type' => 'taxonomy',
+					'instructions' => '',
+					'required' => 1,
+					'conditional_logic' => 0,
+					'wrapper' => array(
+						'width' => '',
+						'class' => '',
+						'id' => '',
+					),
+					'taxonomy' => 'place',
+					'field_type' => 'checkbox',
+					'add_term' => 1,
+					'save_terms' => 0,
+					'load_terms' => 0,
+					'return_format' => 'id',
+					'multiple' => 0,
+					'allow_null' => 0,
+				),
+				array(
+					'key' => 'field_5df37f89e8252',
+					'label' => 'Date from',
+					'name' => 'date_from',
+					'type' => 'date_time_picker',
+					'instructions' => '',
+					'required' => 1,
+					'conditional_logic' => 0,
+					'wrapper' => array(
+						'width' => '',
+						'class' => '',
+						'id' => '',
+					),
+					'display_format' => 'd/m/Y g:i a',
+					'return_format' => 'd/m/Y g:i a',
+					'first_day' => 1,
+				),
+				array(
+					'key' => 'field_5df37fbae8255',
+					'label' => 'Date to',
+					'name' => 'date_to',
+					'type' => 'date_time_picker',
+					'instructions' => '',
+					'required' => 1,
+					'conditional_logic' => 0,
+					'wrapper' => array(
+						'width' => '',
+						'class' => '',
+						'id' => '',
+					),
+					'display_format' => 'd/m/Y g:i a',
+					'return_format' => 'd/m/Y g:i a',
+					'first_day' => 1,
+				),
+			),
+			'location' => array(
+				array(
+					array(
+						'param' => 'post_type',
+						'operator' => '==',
+						'value' => 'event',
+					),
+				),
+			),
+			'menu_order' => 0,
+			'position' => 'acf_after_title',
+			'style' => 'default',
+			'label_placement' => 'top',
+			'instruction_placement' => 'label',
+			'hide_on_screen' => array(
+				0 => 'the_content',
+			),
+			'active' => true,
+			'description' => '',
+		));
+
+		acf_add_local_field_group(array(
+			'key' => 'group_5df37f0bef21d',
+			'title' => 'place',
+			'fields' => array(
+				array(
+					'key' => 'field_5df37f1eadc85',
+					'label' => 'place',
+					'name' => 'place',
+					'type' => 'google_map',
+					'instructions' => '',
+					'required' => 1,
+					'conditional_logic' => 0,
+					'wrapper' => array(
+						'width' => '',
+						'class' => '',
+						'id' => '',
+					),
+					'center_lat' => '',
+					'center_lng' => '',
+					'zoom' => '',
+					'height' => '',
+				),
+			),
+			'location' => array(
+				array(
+					array(
+						'param' => 'taxonomy',
+						'operator' => '==',
+						'value' => 'place',
+					),
+				),
+			),
+			'menu_order' => 0,
+			'position' => 'normal',
+			'style' => 'default',
+			'label_placement' => 'top',
+			'instruction_placement' => 'label',
+			'hide_on_screen' => '',
+			'active' => true,
+			'description' => '',
+		));
+
+	endif;
+}
+
 /**
  * Sets up theme defaults and registers support for various WordPress features.
  *
