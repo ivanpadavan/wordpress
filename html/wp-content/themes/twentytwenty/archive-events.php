@@ -14,12 +14,51 @@
  * @since 1.0.0
  */
 
+function render_calendar() {
+  $my_posts = array();
+	if (have_posts()) {
+		while ( have_posts() ) {
+			the_post();
+			$custom = get_post_custom();
+			$date_from = $custom['date_from'][0];
+			$date_to = $custom['date_to'][0];
+			$place_id = $custom['place'][0];
+			global $post;
+
+			array_push($my_posts, array(
+				'title' => $post->post_title,
+				'date_from' => $date_from,
+				'date_to' => $date_to,
+				'place_id' => $place_id,
+			));
+		}
+	}
+	$place_ids = array_unique(array_map(function ($v) { return $v['place_id']; }, $my_posts));
+	$places = array();
+	$places_query = new WP_Query(array(
+		'post_type' => 'places',
+		'post__in' => $place_ids
+		));
+	if ($places_query->have_posts()) {
+		while ( $places_query->have_posts() ) {
+			$places_query->the_post();
+			$places[$post->ID] = $post;
+		}
+	}
+	wp_reset_postdata();
+
+	foreach ($my_posts as $key => $value)
+		$my_posts[$key]['place'] = $places[$my_posts[$key]['place_id']];
+
+	echo json_encode($my_posts);
+
+}
+
 get_header();
 ?>
 
 <main id="site-content" role="main">
-  <a href="<?php echo get_post_type_archive_link('places'); ?>">Места</a>
-  <a href="<?php echo get_post_type_archive_link('events'); ?>">Места</a>
+
 	<?php
 
 	$archive_title    = '';
@@ -76,19 +115,8 @@ get_header();
 	}
 
 	if ( have_posts() ) {
+		render_calendar();
 
-		$i = 0;
-
-		while ( have_posts() ) {
-			$i++;
-			if ( $i > 1 ) {
-				echo '<hr class="post-separator styled-separator is-style-wide section-inner" aria-hidden="true" />';
-			}
-			the_post();
-
-			get_template_part( 'template-parts/content', get_post_type() );
-
-		}
 	} elseif ( is_search() ) {
 		?>
 
