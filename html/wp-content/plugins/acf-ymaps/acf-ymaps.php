@@ -78,7 +78,7 @@ class acf_plugin_ymaps {
 
 
 		// include
-		include_once('fields/class-NAMESPACE-acf-field-ymaps-v' . $version . '.php');
+		include_once('fields/class-acf-field-ymaps-v' . $version . '.php');
 	}
 
 }
