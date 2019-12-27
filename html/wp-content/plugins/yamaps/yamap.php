@@ -37,7 +37,7 @@ $yamaps_defaults_front = array(
 	'open_map_option'			=> 'off',
 	'apikey_map_option'			=> '',
 	'reset_maps_option'			=> 'off',
-);	
+);
 
 $yamaps_defaults_front_bak=$yamaps_defaults_front;
 $yamaps_defaults=$yamaps_defaults_front;
@@ -52,20 +52,20 @@ if(get_option($option_name)){
     if (is_int($fixpos)) {
     	$fixpattern=array('111;','111');
     	$yamaps_defaults_front['controls_map_option']=str_replace($fixpattern, '', $yamaps_defaults_front['controls_map_option']);
-    	update_option($option_name, $yamaps_defaults_front); 
+    	update_option($option_name, $yamaps_defaults_front);
     }
     //конец правки. Будет удалено в следующих версиях.
 }
 
 //Проверяем все ли дефолтные параметры есть в настройках плагина
-foreach($yamaps_defaults_front_bak as $yamaps_options_key => $yamaps_options_val) {	
+foreach($yamaps_defaults_front_bak as $yamaps_options_key => $yamaps_options_val) {
 	if(!isset($yamaps_defaults_front[$yamaps_options_key])) {
 		$yamaps_defaults_front[$yamaps_options_key]=$yamaps_defaults_front_bak[$yamaps_options_key];
 	}
 }
 
 //Добавляем счетчик полей с контентом (для постов с произвольными полями)
-add_filter( 'the_content', 'yamaps_the_content'); 
+add_filter( 'the_content', 'yamaps_the_content');
 add_filter('widget_text', 'yamaps_the_content');
 function yamaps_the_content( $content ) {
 	global $count_content;
@@ -104,8 +104,8 @@ function yaplacemark_func($atts) {
 				$yacontent="";
 			}
 	}
-	
-	
+
+
 	$yaplacemark='
 		YaMapsWP.myMap'.$maps_count.'.places.placemark'.$yaplacemark_count.' = {icon: "'.$atts["icon"].'", name: "'.$atts["name"].'", color: "'.$atts["color"].'", coord: "'.$atts["coord"].'", url: "'.$atts["url"].'",};
 		myMap'.$maps_count.'placemark'.$yaplacemark_count.' = new ymaps.Placemark(['.$atts["coord"].'], {
@@ -132,7 +132,7 @@ function yaplacemark_func($atts) {
                             });  
 		';
     }
-    
+
 	$atts["url"]=trim($atts["url"]);
 	if (($atts["url"]<>"")and($atts["url"]<>"0")) {
 		$marklink=$atts["url"];
@@ -155,7 +155,7 @@ function yaplacemark_func($atts) {
 //Функция вывода карты
 function yamap_func($atts, $content){
 	global $yaplacemark_count, $yamaps_defaults_front, $yamaps_defaults_front_bak, $yacontrol_count, $maps_count, $count_content, $yamap_load_api, $suppressMapOpenBlock;
-	
+
 	$placearr = '';
 	$atts = shortcode_atts( array(
 		'center' => $yamaps_defaults_front['center_map_option'],
@@ -166,9 +166,10 @@ function yamap_func($atts, $content){
 		'scrollzoom' => '1',
 		'mobiledrag' => '1',
 		'container' => '',
+		'auto-bounds' => ''
 
 	), $atts );
-	
+
 	$yaplacemark_count=0;
 	$yacontrol_count=0;
 
@@ -195,7 +196,7 @@ function yamap_func($atts, $content){
 	else {
 		$yamap='';
 	}
-	
+
 	$placemarkscode=str_replace("&nbsp;", "", strip_tags($content));
 
 	$atts["container"]=trim($atts["container"]);
@@ -205,11 +206,11 @@ function yamap_func($atts, $content){
 	}
 	else {
 		$mapcontainter='yamap'.$maps_count;
-	}	
-	
+	}
+
 	// Проверяем опцию включения кнопки большой карты
 	if ($yamaps_defaults_front['open_map_option']<>'on') {
-		$suppressMapOpenBlock='true'; 
+		$suppressMapOpenBlock='true';
 	}
 	else {
 		$suppressMapOpenBlock='false';
@@ -238,8 +239,8 @@ function yamap_func($atts, $content){
                                 	suppressMapOpenBlock: '.$suppressMapOpenBlock.'
                                 }); 
 
-							'.do_shortcode($placemarkscode);							
-							
+							'.do_shortcode($placemarkscode);
+
 							for ($i = 1; $i <= $yaplacemark_count; $i++) {
 								$placearr.='.add(myMap'.$maps_count.'placemark'.$i.')';
 							}
@@ -252,6 +253,9 @@ function yamap_func($atts, $content){
                             		myMap".$maps_count.".behaviors.disable('drag');	
 								}";
                             }
+                            if ( $atts['auto-bounds'] ):
+                                $yamap.= 'myMap'.$maps_count.'.setBounds(myMap'.$maps_count.'.geoObjects.getBounds());';
+                            endif;
                             $yamap.='
 
                         }
@@ -261,7 +265,7 @@ function yamap_func($atts, $content){
     $authorLinkTitle=__( 'YaMaps plugin for Wordpress', 'yamaps' );
 
     if($yamaps_defaults_front['authorlink_map_option']<>'on'){
-    	
+
     $authorlink='<style>.yamapauthor {position: relative; height: 0;  margin-bottom: 1rem !important; overflow: visible; width: 100%; text-align: center; top: -32px;} .yamapauthor a {display: inline-block; -webkit-box-align: center; padding: 3.5px 5px; text-decoration: none !important; border-bottom: 0; border-radius: 3px; background-color: #fff; cursor: pointer; white-space: nowrap; box-shadow: 0 1px 2px 1px rgba(0,0,0,.15),0 2px 5px -3px rgba(0,0,0,.15);} .yamapauthor a img {width: 17px; height: 17px; margin: 0; display: block;}</style><div class="yamapauthor" style=""><a href="https://www.yhunter.ru/portfolio/dev/yamaps/" title="'.$authorLinkTitle.'" target="_blank" style=""><img src="'.plugins_url( 'js/img/placeholder.svg' , __FILE__ ).'" /></a></div>';
     }
     else {
@@ -270,12 +274,12 @@ function yamap_func($atts, $content){
     if ($atts["container"]=="") $yamap.='<div id="'.$mapcontainter.'"  style="position: relative; min-height: '.$atts["height"].'; margin-bottom: 0 !important;"></div>'.$authorlink;
 
     if ($count_content>=1) $maps_count++;
-    return $yamap; 
+    return $yamap;
 }
 
-add_shortcode( 'yaplacemark', 'yaplacemark_func' );  
-add_shortcode( 'yamap', 'yamap_func' ); 
-add_shortcode( 'yacontrol', 'yacontrol_func' ); 
+add_shortcode( 'yaplacemark', 'yaplacemark_func' );
+add_shortcode( 'yamap', 'yamap_func' );
+add_shortcode( 'yacontrol', 'yacontrol_func' );
 
 //Функция подключения текстового домена для локализации
 function yamaps_plugin_load_plugin_textdomain() {
@@ -287,12 +291,12 @@ add_action( 'plugins_loaded', 'yamaps_plugin_load_plugin_textdomain' );
 // Функция подключения скриптов и массив для локализации
 function yamap_plugin_scripts($plugin_array)
 {
-    
+
     // Plugin localization
 
 	wp_register_script('yamap_plugin', plugin_dir_url(__FILE__) . 'js/shortcode_parser.js?v=0.2');
 	wp_enqueue_script('yamap_plugin');
-	
+
 	$lang_array	 = array('YaMap' => __('Map', 'yamaps'),
 							'AddMap' => __('Add map', 'yamaps'),
 							'EditMap' => __('Edit map', 'yamaps'),
@@ -306,7 +310,7 @@ function yamap_plugin_scripts($plugin_array)
 							'MapHeight' => __('Map height', 'yamaps'),
 							'MarkerName' => __('Placemark name', 'yamaps'),
 							'MarkerNameTip' => __('Text for hint or icon content', 'yamaps'),
-							'MapControlsTip' => __('Use the links below', 'yamaps'),		
+							'MapControlsTip' => __('Use the links below', 'yamaps'),
 							'MarkerCoord' => __('Сoordinates', 'yamaps'),
 							'NoCoord' => __('Click on the map to choose or create the mark', 'yamaps'),
 							'MapControls' => __('Map controls', 'yamaps'),
@@ -331,11 +335,11 @@ function yamap_plugin_scripts($plugin_array)
 
 
 
-	
-	wp_localize_script('yamap_plugin', 'yamap_object', $lang_array); 
+
+	wp_localize_script('yamap_plugin', 'yamap_object', $lang_array);
 
 	global $yamaps_defaults_front;
-	wp_localize_script('yamap_plugin', 'yamap_defaults', $yamaps_defaults_front); 
+	wp_localize_script('yamap_plugin', 'yamap_defaults', $yamaps_defaults_front);
 
 	//enqueue TinyMCE plugin script with its ID.
 
@@ -364,7 +368,7 @@ add_filter("mce_buttons", "register_buttons_editor", 999 );
 add_action('admin_head', 'yamaps_custom_fonts', 999 );
 
 //Исправляем проблему со съехавшим шрифтом в Stretchy метке на карте в редакторе
-function yamaps_custom_fonts() {			
+function yamaps_custom_fonts() {
 	  echo '<style>
 	    .mce-container ymaps {	    	
 	    	font-family: "Source Sans Pro",HelveticaNeue-Light,"Helvetica Neue Light","Helvetica Neue",Helvetica,Arial,"Lucida Grande",sans-serif !important;
@@ -399,4 +403,4 @@ function yamaps_gutenberg_styles() {
 add_action( 'enqueue_block_editor_assets', 'yamaps_gutenberg_styles' );
 
 
-include( plugin_dir_path( __FILE__ ) . 'options.php'); 
+include( plugin_dir_path( __FILE__ ) . 'options.php');
