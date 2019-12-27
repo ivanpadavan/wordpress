@@ -18,7 +18,7 @@ get_header();
 ?>
 
 <main id="site-content" role="main">
-
+  <a href="<?php echo get_post_type_archive_link('places'); ?>">Места</a>
 	<?php
 
 	$archive_title    = '';
