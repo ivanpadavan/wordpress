@@ -20,7 +20,7 @@ class XO_Widget_Event_Calendar extends WP_Widget {
 				'holidays' => array(),
 				'prev' => -1,
 				'next' => -1,
-				'start_of_week' => 0,
+				'start_of_week' => get_option( 'start_of_week' ),
 				'months' => 1
 			);
 		}
@@ -35,7 +35,7 @@ class XO_Widget_Event_Calendar extends WP_Widget {
 		$show_event = ! empty( $categories );
 		$prev = intval( $instance['prev'] );
 		$next = intval( $instance['next'] );
-		$start_of_week = isset( $instance['start_of_week'] ) ? intval( $instance['start_of_week'] ) : 0;
+		$start_of_week = isset( $instance['start_of_week'] ) ? intval( $instance['start_of_week'] ) : get_option( 'start_of_week' );
 		$months = isset( $instance['months'] ) ? intval( $instance['months'] ) : 1;
 
 		echo $xo_event_calendar->get_calendar( array(
@@ -76,7 +76,7 @@ jQuery(document).ready(function($) {
 		echo '<label for="' . $this->get_field_id( 'title' ) . '">' . __( 'Title:', 'xo-event-calendar' ) . '</label>';
 		echo '<input class="widefat" id="' . $this->get_field_id( 'title' ) . '" name="' . $this->get_field_name( 'title' ) . '" type="text" value="' . esc_attr( $title ) . '" />';
 		echo '</p>' . "\n";
-		
+
 		$terms = get_terms( XO_Event_Calendar::get_taxonomy_type(), array( 'hide_empty' => false ) );
 		echo '<span>' . __( 'Categories:', 'xo-event-calendar' ) . '</span>';
 		echo '<div id="' . XO_Event_Calendar::get_taxonomy_type() . '" class="xo-event-cat-checklist">';
