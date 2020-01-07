@@ -29,7 +29,7 @@ define( 'XO_EVENT_CALENDAR_PLUGIN_FILE', __FILE__ );
 define( 'XO_EVENT_CALENDAR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'XO_EVENT_CALENDAR_URL', plugin_dir_url( __FILE__ ) );
 
-load_plugin_textdomain( 'xo-event-calendar' );
+load_plugin_textdomain( 'xo-event-calendar', FALSE, basename( dirname( __FILE__ ) ) . '/languages/' );
 
 require_once( XO_EVENT_CALENDAR_DIR . 'inc/class-xo-color.php' );
 require_once( XO_EVENT_CALENDAR_DIR . 'inc/event-calendar-widget.php' );
