@@ -140,7 +140,7 @@ class XO_Event_Calendar {
 		$holidays = isset( $_POST['holidays'] ) ? $_POST['holidays'] : '';
 		$prev = isset( $_POST['prev'] ) ? intval( $_POST['prev'] ) : -1;
 		$next = isset( $_POST['next'] ) ? intval( $_POST['next'] ) : -1;
-		$start_of_week = isset( $_POST['start_of_week'] ) ? intval( $_POST['start_of_week'] ) : 1;
+		$start_of_week = isset( $_POST['start_of_week'] ) ? intval( $_POST['start_of_week'] ) : get_option( 'start_of_week' );
 		$months = isset( $_POST['months'] ) ? intval( $_POST['months'] ) : 1;
 		$navigation = isset( $_POST['navigation'] ) ? (bool)$_POST['navigation'] : false;
 		preg_match( '/^([0-9]{4})-([0-9]{1,2})/', $month, $matches );
