@@ -19,6 +19,9 @@ define( 'XO_EVENT_CALENDAR_VERSION', '2.1.2' );
 if ( !defined( 'XO_EVENT_CALENDAR_EVENT_POST_TYPE' ) ) {
 	define( 'XO_EVENT_CALENDAR_EVENT_POST_TYPE', 'xo_event' );
 }
+if ( !defined( 'XO_EVENT_CALENDAR_PLACE_POST_TYPE' ) ) {
+	define( 'XO_EVENT_CALENDAR_PLACE_POST_TYPE', 'xo_place' );
+}
 if ( !defined( 'XO_EVENT_CALENDAR_EVENT_TAXONOMY' ) ) {
 	define( 'XO_EVENT_CALENDAR_EVENT_TAXONOMY', 'xo_event_cat' );
 }

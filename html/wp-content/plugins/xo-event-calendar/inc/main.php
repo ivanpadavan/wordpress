@@ -19,6 +19,10 @@ class XO_Event_Calendar {
 		return XO_EVENT_CALENDAR_EVENT_POST_TYPE;
 	}
 
+	static function get_place_post_type() {
+		return XO_EVENT_CALENDAR_PLACE_POST_TYPE;
+	}
+
 	static function get_taxonomy_type() {
 		return XO_EVENT_CALENDAR_EVENT_TAXONOMY;
 	}
@@ -197,6 +201,34 @@ class XO_Event_Calendar {
 		);
 		$args = apply_filters( 'xo_event_calendar_register_post_args', $args );
 		register_post_type( $post_type, $args );
+
+		$place_post_type = $this->get_place_post_type();
+		$args = array(
+			'labels' => array(
+				'name' => _x( 'Places', 'post type general name', 'xo-event-calendar' ),
+				'singular_name' => _x( 'Place', 'post type singular name', 'xo-event-calendar' ),
+				'menu_name' => _x( 'Places', 'admin menu', 'xo-event-calendar' ),
+				'name_admin_bar' => _x( 'Place', 'add new on admin bar', 'xo-event-calendar' ),
+				'add_new' => _x( 'Add New', 'Event', 'xo-event-calendar' ),
+				'add_new_item' => __( 'Add New Place', 'xo-event-calendar' ),
+				'new_item' => __( 'New Place', 'xo-event-calendar' ),
+				'edit_item' => __( 'Edit Place', 'xo-event-calendar' ),
+				'view_item' => __( 'View Place', 'xo-event-calendar' ),
+				'all_items' => __( 'All Places', 'xo-event-calendar' ),
+				'search_items' => __( 'Search Places', 'xo-event-calendar' ),
+				'parent_item_colon'  => __( 'Parent Places:', 'xo-event-calendar' ),
+				'not_found' => __( 'No Places found.', 'xo-event-calendar' ),
+				'not_found_in_trash' => __( 'No Places found in Trash.', 'xo-event-calendar' )
+			),
+			'public' => true,
+			'show_in_menu' => "edit.php?post_type=$post_type",
+			'menu_icon' => 'dashicons-calendar-alt',
+			'supports' => array( 'title', 'editor', 'excerpt', 'thumbnail' ),
+			'has_archive' => true,
+			'show_in_rest' => true,
+		);
+		$args = apply_filters( 'xo_event_calendar_register_place_post_args', $args );
+		register_post_type( $place_post_type, $args );
 
 		$taxonomy_type = $this->get_taxonomy_type();
 		$args = array(
