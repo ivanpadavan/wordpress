@@ -1,28 +1,151 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+} // Exit if accessed directly
 
-class acfyandex_version extends acfyandex_common
-{
-    public function render_field( $field )
-    {
-
-        $val = trim(esc_html($field['value']));
-        if(strlen($val)>0){
-            $val = explode(",", $val);
-            foreach($val as $key=>$value){$val[$key] = filter_var($value,FILTER_VALIDATE_FLOAT);}
-        }
-        $field['value'] = (array_key_exists(0, $val)?$val[0]:"0").",".(array_key_exists(1, $val)?$val[1]:"0");
-        ?>
-        <input type="text" id="<?php echo $field['id'] ?>" class="acf_yandex"
-                name="<?php echo esc_attr($field['name']) ?>"
-                value="<?php echo esc_attr($field['value']) ?>"
+class acfyandex_version extends acfyandex_common {
+	public function render_field( $field ) {
+		$value = json_decode( $field['value'] );
+		?>
+      <input type="hidden" id="<?php echo $field['id'] ?>"
+             name="<?php echo esc_attr( $field['name'] ) ?>"
+             value="<?php echo esc_attr( $field['value'] ) ?>"
+      />
+      <label>
+        Адрес
+        <input type="text"
+               id="address"
+               value="<?php echo $value->address ?>"
         />
-        <?=__('Find out the coordinates of points at','acfyandex')?>: <a href="http://dimik.github.io/ymaps/examples/location-tool/" target="_blank">http://dimik.github.io/ymaps/examples/location-tool/</a>&nbsp;&nbsp;&nbsp;<?=__('Record example: "55.753923,37.620690"','acfyandex')?>&nbsp;&nbsp;&nbsp;
-        <p class="description">
-            <?=__('Shortcode to publish','acfyandex')?>: <B>[yandexmap  _field=<?=$field['_name']?>]</B>. <?=__('For the shortcode to work, be sure to specify one of the two parameters "_field" or "point". You can find out more about shortcode parameters.','acfyandex')?> <a href="#" onclick="element=document.getElementById('acf_yandex_v5_shortcode_info'); if(element.style.display == 'none'){element.style.display = 'block';}else{element.style.display = 'none';}return false;"><?=__('here','acfyandex')?></a>.<BR><div id='acf_yandex_v5_shortcode_info' style='display:none; background-color:rgba(200,200,200,0.5); border: 1px solid #0085ba; padding:10px;'>
-            <?=__('_field - name of the ACF field from which point <BR> values ​​will be substituted<BR>point - coordinates of the point (example of an entry: "55.76, 37.64")<BR>style_width, style_height - width and height of the map block <BR>class - connect css style to the map block<BR>zoom - map zoom, value from 1 to 19 (the default value can be configured in the <a href="./options-general.php?page=menu_acfyandex_plugin"> menu Settings => ACF-Yandex => Zoom by default </a>)<BR>title - signature for the point<BR>memo - description when pressing<BR>By default, a point is formed with the specified coordinates, the title of the post (page) is used as a signature, if the post or page contains a thumbnail and an excerpt, then this data will be inserted into the description when clicked. The data specified in the shortcode parameters are priority.','acfyandex')?>
-        </div>
-        </p>
-         <div id="extendbox"></div><?php
-    }
+      </label>
+      <div id="map" style="width: 100%; height: 250px"></div>
+      <script type="text/javascript">
+          var CallbackRegistry = {}; // реестр
+
+          // при успехе вызовет onSuccess, при ошибке onError
+          function scriptRequest(url, onSuccess, onError) {
+
+              var scriptOk = false; // флаг, что вызов прошел успешно
+
+              // сгенерировать имя JSONP-функции для запроса
+              var callbackName = 'cb' + String(Math.random()).slice(-6);
+
+              // укажем это имя в URL запроса
+              url += ~url.indexOf('?') ? '&' : '?';
+              url += 'callback=CallbackRegistry.' + callbackName;
+
+              // ..и создадим саму функцию в реестре
+              CallbackRegistry[callbackName] = function (data) {
+                  scriptOk = true; // обработчик вызвался, указать что всё ок
+                  delete CallbackRegistry[callbackName]; // можно очистить реестр
+                  onSuccess(data); // и вызвать onSuccess
+              };
+
+              // эта функция сработает при любом результате запроса
+              // важно: при успешном результате - всегда после JSONP-обработчика
+              function checkCallback() {
+                  if (scriptOk) return; // сработал обработчик?
+                  delete CallbackRegistry[callbackName];
+                  onError(url); // нет - вызвать onError
+              }
+
+              var script = document.createElement('script');
+
+              // в старых IE поддерживается только событие, а не onload/onerror
+              // в теории 'readyState=loaded' означает "скрипт загрузился",
+              // а 'readyState=complete' -- "скрипт выполнился", но иногда
+              // почему-то случается только одно из них, поэтому проверяем оба
+              script.onreadystatechange = function () {
+                  if (this.readyState == 'complete' || this.readyState == 'loaded') {
+                      this.onreadystatechange = null;
+                      setTimeout(checkCallback, 0); // Вызвать checkCallback - после скрипта
+                  }
+              }
+
+              // события script.onload/onerror срабатывают всегда после выполнения скрипта
+              script.onload = script.onerror = checkCallback;
+              script.src = url;
+
+              document.body.appendChild(script);
+          }
+
+          ymaps.ready(init);
+
+          function init() {
+              const center = [55.753994, 37.622093];
+              let coords = <?php echo json_encode($value->coords) ?>;
+              const myMap = new ymaps.Map('map', {
+                  center,
+                  zoom: 9,
+                  controls: ['zoomControl']
+              }, {
+                  searchControlProvider: 'yandex#search'
+              });
+
+              const myPlacemark = createPlacemark(coords);
+              myMap.geoObjects.add(myPlacemark);
+              myPlacemark.events.add('dragend', function () {
+                  getAddress(myPlacemark.geometry.getCoordinates());
+              });
+
+              myMap.cursors.push('arrow');
+              // Слушаем клик на карте.
+              myMap.events.add('click', function (e) {
+                  coords = e.get('coords');
+                  myPlacemark.geometry.setCoordinates(coords);
+                  getAddress(coords);
+              });
+
+              // Создание метки.
+              function createPlacemark(coords) {
+                  return new ymaps.Placemark(coords, {}, {
+                      preset: 'islands#redDotIconWithCaption',
+                      draggable: true
+                  });
+              }
+
+              // Определяем адрес по координатам (обратное геокодирование).
+              function getAddress(query) {
+                  myPlacemark.properties.set('iconCaption', 'поиск...');
+
+                  scriptRequest(
+                      `https://api-maps.yandex.ru/services/search/v2/?text=${query}&format=json&rspn=0&lang=ru_RU&apikey=<?php echo $this->YandexKey?>&token=34c03b8b52660f347dd9c178daf8cdcd&type=geo&properties=addressdetails&geocoder_sco=latlong&origin=jsapi2Geocoder`,
+                      (res) => {
+                          var firstGeoObject = res.data.features[0];
+
+                          if (!firstGeoObject) {
+                              myPlacemark.properties.set('iconCaption', 'Не найдено');
+                              return;
+                          }
+                          coords = firstGeoObject.geometries[0].coordinates.reverse() || coords;
+                          myPlacemark.geometry.setCoordinates(coords);
+                          const {name, description} = firstGeoObject.properties;
+                          myPlacemark.properties
+                              .set({ iconCaption: null, balloonContent: null });
+
+                          const setByAddress = typeof query === 'string';
+
+                          if (setByAddress) {
+                              myMap.setCenter(coords);
+                          }
+
+                          const address = setByAddress
+                              ? query
+                              : description + ', ' + name;
+                          document.getElementById("<?php echo $field['id'] ?>").value = JSON.stringify({
+                              coords,
+                              address
+                          });
+                          document.getElementById("address").value = address;
+                      },
+                  )
+              }
+
+              document
+                  .getElementById('address')
+                  .addEventListener('input', _.debounce(e => getAddress(e.target.value), 1000));
+          }
+      </script>
+		<?php
+	}
 }

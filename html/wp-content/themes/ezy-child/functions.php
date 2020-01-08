@@ -70,3 +70,50 @@ function archive_page_venue($post_type_args) {
 		'has_archive' => 'places',
 	]);
 }
+
+if( function_exists('acf_add_local_field_group') ):
+	acf_add_local_field_group(array(
+		'key' => 'group_5e15bc813966c',
+		'title' => 'xo-place',
+		'fields' => array(
+			array(
+				'key' => 'field_5e15c02333ae8',
+				'label' => 'coordinates',
+				'name' => 'coordinates',
+				'type' => 'yandex',
+				'instructions' => '',
+				'required' => 0,
+				'conditional_logic' => 0,
+				'wrapper' => array(
+					'width' => '',
+					'class' => '',
+					'id' => '',
+				),
+			),
+		),
+		'location' => array(
+			array(
+				array(
+					'param' => 'post_type',
+					'operator' => '==',
+					'value' => 'xo_place',
+				),
+			),
+		),
+		'menu_order' => 0,
+		'position' => 'normal',
+		'style' => 'default',
+		'label_placement' => 'top',
+		'instruction_placement' => 'label',
+		'hide_on_screen' => '',
+		'active' => true,
+		'description' => '',
+	));
+
+endif;
+add_filter( 'the_content', function($content) use ( $post ) {
+	if (get_post_type($post) != 'xo_place') return $content;
+
+	$coordinates = json_decode(get_field('coordinates', $post));
+	return $content . '<pre>' . print_r($coordinates, 1) . '</pre>';
+}, 9);
