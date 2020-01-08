@@ -72,10 +72,9 @@ class acfyandex_version extends acfyandex_common {
           ymaps.ready(init);
 
           function init() {
-              const center = [55.753994, 37.622093];
-              let coords = <?php echo json_encode($value->coords) ?>;
+              let coords = <?php echo json_encode($value->coords) ?> || [55.753994, 37.622093];
               const myMap = new ymaps.Map('map', {
-                  center,
+                  center: coords,
                   zoom: 9,
                   controls: ['zoomControl']
               }, {
