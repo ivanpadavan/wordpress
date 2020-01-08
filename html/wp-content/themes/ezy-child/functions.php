@@ -23,10 +23,10 @@ add_action( 'wp_enqueue_scripts', 'chld_thm_cfg_parent_css', 10 );
 
 // END ENQUEUE PARENT ACTION
 
-function logg( $msg ) {
-	echo '<h3>here</h3>';
-	echo '<script>console.log(`'.$msg.'`)</script>';
-}
+add_filter( 'qm/output/file_path_map', function( $map ) {
+	$map['/var/www/html'] = '/Users/user/Developer/wordpress/html';
+	return $map;
+} );
 
 $image_ids = [];
 add_filter( 'the_content', 'replace_wp_gallery' );
@@ -58,11 +58,15 @@ function use_images_from_wp_gallery( $images, $meta_id, $type, $atts ) {
 		) );
 
 		$images_order = array_flip($image_ids);
-		usort($images, function ($a, $b) use ($images_order) {
-			return $images_order[$a->ID] <=> $images_order[$b->ID];
-		});
+		usort($images, fn($a, $b) => $images_order[$a->ID] <=> $images_order[$b->ID]);
 	}
 	$image_ids = [];
 	return $images;
 }
 
+add_filter( 'tribe_events_register_venue_type_args', 'archive_page_venue' );
+function archive_page_venue($post_type_args) {
+	return array_merge($post_type_args, [
+		'has_archive' => 'places',
+	]);
+}
