@@ -571,6 +571,11 @@ function ug_collage_gallery_js() {
 
 add_action( 'wp_ajax_collage_gallery', 'ug_collage_gallery_js' );
 
+function is_gallery_post_type() {
+  global $post;
+  return $post->post_type == 'gallery';
+}
+
 add_filter( 'the_excerpt', 'ug_the_content_filter' );
 add_filter( 'the_content', 'ug_the_content_filter' );
 function ug_the_content_filter( $content ) {
@@ -592,7 +597,6 @@ function ug_the_content_filter( $content ) {
 					} else {
 						$content .= do_shortcode( '[collage_gallery]' );
 					}
-
 				}
 
 				break;
@@ -679,7 +683,8 @@ function ug_settings_admin_init() {
 				'options' => array(
 					'front_page' => __( 'Front page, <small>is_front_page()</small>.', 'collage-gallery' ),
 					'single'     => __( 'Single (posts) pages, <small>is_single()</small>.', 'collage-gallery' ),
-					'tax'        => __( 'Tax pages, <small>is_tax()</small>.', 'collage-gallery' )
+					'tax'        => __( 'Tax pages, <small>is_tax()</small>.', 'collage-gallery' ),
+					'gallery_post_type' => 'Gallery post type, <small>is_gallery_post_type()</small>.',
 				)
 			),
 			array(
