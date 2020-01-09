@@ -1,0 +1,41 @@
+/*
+Theme Name: Ezy Child
+Theme URI: https://www.canyonthemes.com/downloads/ezy
+Template: ezy
+Author: canyonthemes
+Author URI: https://www.canyonthemes.com/
+Description: Ezy is a simple and easy to use, modern and creative, user friendly and elegant, WordPress theme for blog, news and magazine sites. It is responsive, cross browser compatible, SEO friendly theme with lots of highly created features. Theme comes with beautiful slider section, featured post column, footer options, sidebar options, site design options and many more. It is very light weighted theme based on customizer. Added custom widgets for author information and advertisement will make your site awesome. Try Ezy today and blog away. Our dedicated support team will guide you in every steps while using theme.
+Tags: two-columns,right-sidebar,custom-background,custom-colors,custom-menu,featured-images,sticky-post,theme-options,threaded-comments,translation-ready,blog,post-formats,custom-logo
+Version: 1.0.3.1578087009
+Updated: 2020-01-04 00:30:09
+
+*/
+
+.header-lower {
+    margin-bottom: 0;
+}
+#primary, #secondary {
+    padding-top: 30px;
+}
+
+#secondary {
+    position: sticky;
+    top: 0;
+}
+
+#primary:last-child {
+    width: 100%!important;
+}
+
+.tribe-events-list-widget *:nth-child(n + 1) {
+    margin-left: 1rem;
+    margin-right: 1rem;
+}
+.tribe-events-list-widget  *:nth-child(2) {
+    margin-top: 1rem;
+}
+.tribe-events-list-widget  *:last-child {
+    padding-bottom: 1rem;
+}
+
+
