@@ -20,55 +20,6 @@ class acfyandex_version extends acfyandex_common {
       </label>
       <div id="map" style="width: 100%; height: 250px"></div>
       <script type="text/javascript">
-          var CallbackRegistry = {}; // реестр
-
-          // при успехе вызовет onSuccess, при ошибке onError
-          function scriptRequest(url, onSuccess, onError) {
-
-              var scriptOk = false; // флаг, что вызов прошел успешно
-
-              // сгенерировать имя JSONP-функции для запроса
-              var callbackName = 'cb' + String(Math.random()).slice(-6);
-
-              // укажем это имя в URL запроса
-              url += ~url.indexOf('?') ? '&' : '?';
-              url += 'callback=CallbackRegistry.' + callbackName;
-
-              // ..и создадим саму функцию в реестре
-              CallbackRegistry[callbackName] = function (data) {
-                  scriptOk = true; // обработчик вызвался, указать что всё ок
-                  delete CallbackRegistry[callbackName]; // можно очистить реестр
-                  onSuccess(data); // и вызвать onSuccess
-              };
-
-              // эта функция сработает при любом результате запроса
-              // важно: при успешном результате - всегда после JSONP-обработчика
-              function checkCallback() {
-                  if (scriptOk) return; // сработал обработчик?
-                  delete CallbackRegistry[callbackName];
-                  onError(url); // нет - вызвать onError
-              }
-
-              var script = document.createElement('script');
-
-              // в старых IE поддерживается только событие, а не onload/onerror
-              // в теории 'readyState=loaded' означает "скрипт загрузился",
-              // а 'readyState=complete' -- "скрипт выполнился", но иногда
-              // почему-то случается только одно из них, поэтому проверяем оба
-              script.onreadystatechange = function () {
-                  if (this.readyState == 'complete' || this.readyState == 'loaded') {
-                      this.onreadystatechange = null;
-                      setTimeout(checkCallback, 0); // Вызвать checkCallback - после скрипта
-                  }
-              }
-
-              // события script.onload/onerror срабатывают всегда после выполнения скрипта
-              script.onload = script.onerror = checkCallback;
-              script.src = url;
-
-              document.body.appendChild(script);
-          }
-
           ymaps.ready(init);
 
           function init() {
@@ -106,19 +57,18 @@ class acfyandex_version extends acfyandex_common {
               // Определяем адрес по координатам (обратное геокодирование).
               function getAddress(query) {
                   myPlacemark.properties.set('iconCaption', 'поиск...');
-
-                  scriptRequest(
-                      `https://api-maps.yandex.ru/services/search/v2/?text=${query}&format=json&rspn=0&lang=ru_RU&apikey=<?php echo $this->YandexKey?>&token=34c03b8b52660f347dd9c178daf8cdcd&type=geo&properties=addressdetails&geocoder_sco=latlong&origin=jsapi2Geocoder`,
-                      (res) => {
-                          var firstGeoObject = res.data.features[0];
+                  ymaps.geocode(query)
+                      .then((res) => {
+                          var firstGeoObject = res.geoObjects.get(0);
+                          console.log(firstGeoObject);
 
                           if (!firstGeoObject) {
                               myPlacemark.properties.set('iconCaption', 'Не найдено');
                               return;
                           }
-                          coords = firstGeoObject.geometries[0].coordinates.reverse() || coords;
+                          coords = firstGeoObject.geometry._coordinates;
                           myPlacemark.geometry.setCoordinates(coords);
-                          const {name, description} = firstGeoObject.properties;
+                          const [name, description] = ['name', 'text'].map(it => firstGeoObject.properties.get(it));
                           myPlacemark.properties
                               .set({ iconCaption: null, balloonContent: null });
 
@@ -130,14 +80,13 @@ class acfyandex_version extends acfyandex_common {
 
                           const address = setByAddress
                               ? query
-                              : description + ', ' + name;
+                              : description;
                           document.getElementById("<?php echo $field['id'] ?>").value = JSON.stringify({
                               coords,
                               address
                           });
                           document.getElementById("address").value = address;
-                      },
-                  )
+                      }).catch(() => myPlacemark.properties.set('iconCaption', 'Ошибка'));
               }
 
               document
