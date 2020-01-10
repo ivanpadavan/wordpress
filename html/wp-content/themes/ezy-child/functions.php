@@ -28,6 +28,10 @@ add_filter( 'qm/output/file_path_map', function( $map ) {
 	return $map;
 } );
 
+function print__r($any) {
+	print '<pre>' . print_r($any, 1) . '</pre>';
+}
+
 $image_ids = [];
 add_filter( 'the_content', 'replace_wp_gallery' );
 function replace_wp_gallery( $content ) {
@@ -109,11 +113,18 @@ if( function_exists('acf_add_local_field_group') ):
 		'active' => true,
 		'description' => '',
 	));
+	function render_map() {
+		if (have_posts()) {
+			$shortcode = '[yamap height="50vh" type="yandex#map" controls="typeSelector;zoomControl" auto-bounds=1]';
 
+			while ( have_posts() ) {
+				the_post();
+				$custom = (array) json_decode(get_field('coordinates', $post));
+				[coords => [0 => $lon, 1 => $lat]] = $custom;
+				$shortcode .= '[yaplacemark coord="'.$lon.','.$lat.'" url="'.get_permalink().'" icon="islands#blueRailwayIcon" color="#ff751f" name="'.get_the_title().'"]';
+			}
+			$shortcode.='[/yamap]';
+			echo do_shortcode($shortcode);
+		}
+	}
 endif;
-add_filter( 'the_content', function($content) use ( $post ) {
-	if (get_post_type($post) != 'xo_place') return $content;
-
-	$coordinates = json_decode(get_field('coordinates', $post));
-	return $content . '<pre>' . print_r($coordinates, 1) . '</pre>';
-}, 9);
