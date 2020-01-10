@@ -10,7 +10,7 @@ abstract class acfyandex_common extends acf_field
         $this->label = __('Yandex map','acfyandex');
         $this->category = 'jQuery';
         $this->settings = $settings;
-        $values = get_option('acfyandex_data');
+        $values = get_option('acfyandex_data', []);
         $this->YandexKey = sanitize_text_field(array_key_exists('acfyandex_data_apikey', $values)?$values['acfyandex_data_apikey']:'');
         $this->ZoomDefault = (int)sanitize_text_field(array_key_exists('acfyandex_data_zoom', $values)?$values['acfyandex_data_zoom']:'');
 
@@ -25,7 +25,7 @@ abstract class acfyandex_common extends acf_field
         if( empty( $value ) ) {$value = 0;}
         return $value;
     }
-    
-    
+
+
 
 }

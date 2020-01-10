@@ -53,7 +53,7 @@ class acfyandex_plugin {
 		}
 	}
 
-	private function update_formdate( $date_update ) {
+	private static function update_formdate( $date_update ) {
 		if ( ( ! isset( $date_update ) ) || ( ! is_array( $date_update ) ) ) {
 			return false;
 		}
@@ -61,7 +61,7 @@ class acfyandex_plugin {
 		return update_option( 'acfyandex_data', acfyandex_plugin::validate_settings( $date_update ) );
 	}
 
-	public function formsetup() {
+	public static function formsetup() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			exit();
 		}
@@ -89,12 +89,12 @@ class acfyandex_plugin {
 	}
 
 
-	public function plugin_notice_ok() {
+	public static function plugin_notice_ok() {
 		?>
       <div class="notice notice-success is-dismissible"><p><?= __( 'Settings updated!', 'acfyandex' ) ?></p>
       </div><?php }
 
-	public function plugin_notice_error() {
+	public static function plugin_notice_error() {
 		?>
       <div class="notice notice-error is-dismissible"><p><?= __( 'Error! Could not update data.', 'acfyandex' ) ?></p>
       </div><?php }
@@ -128,7 +128,7 @@ class acfyandex_plugin {
 	}
 
 
-	public function validate_settings( $input ) {
+	public static function validate_settings( $input ) {
 
 		foreach ( $input as $k => $v ) {
 			switch ( trim( strtolower( $k ) ) ) {
@@ -153,7 +153,7 @@ class acfyandex_plugin {
 	}
 
 
-	public function option_display_settings( $args ) {
+	public static function option_display_settings( $args ) {
 		extract( $args );
 		$o = get_option( acfyandex_nameoption );
 		switch ( $type ) {
@@ -217,7 +217,7 @@ class acfyandex_plugin {
 	}
 
 	public function acfyandex_scriptsinit() {
-		$values  = get_option( 'acfyandex_data' );
+		$values  = get_option( 'acfyandex_data', []);
 		$api_key = array_key_exists( 'acfyandex_data_apikey', $values ) ? $values['acfyandex_data_apikey'] : '';
 		wp_enqueue_script( 'acfyandex-key', "//api-maps.yandex.ru/2.1/?apikey={$api_key}&lang=ru_RU" );
 	}
