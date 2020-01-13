@@ -11,7 +11,9 @@ RUN echo "xdebug.remote_enable=1" >> /usr/local/etc/php/conf.d/php.ini && \
     echo 'xdebug.file_link_format = "idea://open?file=%f&line=%l"' >> /usr/local/etc/php/conf.d/php.ini && \
     echo "xdebug.remote_host=host.docker.internal" >> /usr/local/etc/php/conf.d/php.ini && \
     echo "xdebug.remote_port=${XDEBUG_PORT}" >> /usr/local/etc/php/conf.d/php.ini && \
-    echo "xdebug.idekey=${XDEBUG_IDEKEY}" >> /usr/local/etc/php/conf.d/php.ini
+    echo "xdebug.idekey=${XDEBUG_IDEKEY}" >> /usr/local/etc/php/conf.d/php.ini && \
+    echo "upload_max_filesize=12M" >> /usr/local/etc/php/conf.d/php.ini && \
+    echo "post_max_size=13M" >> /usr/local/etc/php/conf.d/php.ini
 
 RUN curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
     chmod +x wp-cli.phar && \
