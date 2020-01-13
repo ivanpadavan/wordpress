@@ -28,15 +28,17 @@ add_filter( 'qm/output/file_path_map', function( $map ) {
 	return $map;
 } );
 
-function print__r($any) {
-	print '<pre>' . print_r($any, 1) . '</pre>';
+if (!function_exists('print__r')) {
+	function print__r($any) {
+		print '<pre>' . print_r($any, 1) . '</pre>';
+	}
 }
 
 $image_ids = [];
 add_filter( 'the_content', 'replace_wp_gallery' );
 function replace_wp_gallery( $content ) {
 	$hasWpGallery = strpos($content, "wp-block-gallery");
-	$hasCollageGallery = strpos($content, '[collage_gallery]');
+	$hasCollageGallery = has_shortcode($content, 'collage_gallery');
 
 	if ($hasWpGallery && $hasCollageGallery) {
 		global $image_ids;
