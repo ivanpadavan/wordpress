@@ -41,8 +41,6 @@ if( 'left-sidebar' == $designlayout ){
 
   		echo do_shortcode('[xo_event_calendar]');
 
-  		print__r(  		$wp_query->is_home() );
-  		print__r(  		$wp_query->is_post_type_archive() );
 			/* Start the Loop */
 
 			while ( have_posts() ) : the_post();

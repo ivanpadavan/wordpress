@@ -34,9 +34,7 @@
 </head>
 
 <body <?php body_class('at-sticky-sidebar');?>>
-<h1><?php print__r(get_post_type_archive_link('tribe_venue')); ?></h1>
 	<div class="<?php echo  esc_attr( $ezy_site_layout ); ?>">
-
 <?php
 	/**
 	 * Hook - ezy_header_start_wrapper_action.
