@@ -202,6 +202,30 @@ class XO_Event_Calendar {
 		$args = apply_filters( 'xo_event_calendar_register_post_args', $args );
 		register_post_type( $post_type, $args );
 
+		$taxonomy_type = $this->get_taxonomy_type();
+		$args = array(
+			'labels' => array(
+				'name' => _x( 'Categories', 'taxonomy general name', 'xo-event-calendar' ),
+				'singular_name' => _x( 'Category', 'taxonomy singular name', 'xo-event-calendar' ),
+				'search_items' => __( 'Search Categories', 'xo-event-calendar' ),
+				'all_items' => __( 'All Categories', 'xo-event-calendar' ),
+				'parent_item' => __( 'Parent Category', 'xo-event-calendar' ),
+				'parent_item_colon' => __( 'Parent Category:', 'xo-event-calendar' ),
+				'edit_item' => __( 'Edit Category', 'xo-event-calendar' ),
+				'update_item' => __( 'Update Category', 'xo-event-calendar' ),
+				'add_new_item' => __( 'Add New Category', 'xo-event-calendar' ),
+				'new_item_name' => __( 'New Category Name', 'xo-event-calendar' ),
+				'menu_name' => __( 'Category', 'xo-event-calendar' )
+			),
+			'hierarchical' => true,
+			'show_ui' => true,
+			'query_var' => true,
+			'rewrite' => array( 'slug' => $taxonomy_type ),
+			'show_in_rest' => true,
+		);
+		$args = apply_filters( 'xo_event_calendar_register_taxonomy_args', $args );
+		register_taxonomy( $taxonomy_type, $post_type, $args );
+
 		$place_post_type = $this->get_place_post_type();
 		$args = array(
 			'labels' => array(
@@ -229,30 +253,64 @@ class XO_Event_Calendar {
 		);
 		$args = apply_filters( 'xo_event_calendar_register_place_post_args', $args );
 		register_post_type( $place_post_type, $args );
+	}
 
+	public function get_nearest_events( $start_date = null, $num_of_events = 5, $terms = null ) {
+		$start_date ??= new DateTime();
+		$post_type = $this->get_post_type();
 		$taxonomy_type = $this->get_taxonomy_type();
+
 		$args = array(
-			'labels' => array(
-				'name' => _x( 'Categories', 'taxonomy general name', 'xo-event-calendar' ),
-				'singular_name' => _x( 'Category', 'taxonomy singular name', 'xo-event-calendar' ),
-				'search_items' => __( 'Search Categories', 'xo-event-calendar' ),
-				'all_items' => __( 'All Categories', 'xo-event-calendar' ),
-				'parent_item' => __( 'Parent Category', 'xo-event-calendar' ),
-				'parent_item_colon' => __( 'Parent Category:', 'xo-event-calendar' ),
-				'edit_item' => __( 'Edit Category', 'xo-event-calendar' ),
-				'update_item' => __( 'Update Category', 'xo-event-calendar' ),
-				'add_new_item' => __( 'Add New Category', 'xo-event-calendar' ),
-				'new_item_name' => __( 'New Category Name', 'xo-event-calendar' ),
-				'menu_name' => __( 'Category', 'xo-event-calendar' )
+			'post_type' => $post_type,
+			'post_status' => 'publish',
+			'orderby' => array( 'event_start_date' => 'ASC' ),
+			'meta_query' => array (
+				'key' => 'event_start_date',
+				'value' => date( 'Y-m-d', $start_date ),
+				'compare' => '<=',
+				'type' => 'DATE'
 			),
-			'hierarchical' => true,
-			'show_ui' => true,
-			'query_var' => true,
-			'rewrite' => array( 'slug' => $taxonomy_type ),
-			'show_in_rest' => true,
+
+			'posts_per_page' => $num_of_events
 		);
-		$args = apply_filters( 'xo_event_calendar_register_taxonomy_args', $args );
-		register_taxonomy( $taxonomy_type, $post_type, $args );
+
+		if ( !empty( $terms ) ) {
+			$args['tax_query'] = array( array( 'taxonomy' => $taxonomy_type, 'field' => 'id', 'terms' => $terms ) );
+		}
+		$query = new WP_Query( $args );
+
+		$events = array();
+		while ( $query->have_posts() ) {
+			global $post;
+			$query->the_post();
+
+			// Get category color
+			$bg_color = '#ccc';
+			$terms = get_the_terms( $post->ID, $taxonomy_type );
+			if ( is_array( $terms ) ) {
+				foreach ( $terms as $cate ) {
+					$cat_data = get_option( 'xo_event_calendar_cat_' . intval( $cate->term_id ) );
+					$cat_color = esc_html( $cat_data['category_color'] );
+					if ( $cat_color ) {
+						$bg_color = $cat_color;
+						break;
+					}
+				}
+			}
+
+			$events[] = array(
+				'post' => $post,
+				'title' => get_the_title(),
+				'start_date' => get_post_meta( $post->ID, 'event_start_date', true ),
+				'end_date' => get_post_meta( $post->ID, 'event_end_date', true ),
+				'bg_color' => $bg_color,
+				'permalink' => get_permalink( $post->ID ),
+				'short_title' => get_post_meta( $post->ID, 'short_title', true ),
+			);
+		}
+		wp_reset_postdata();
+
+		return $events;
 	}
 
 	private function get_events( $start_date, $end_date, $terms = null ) {
