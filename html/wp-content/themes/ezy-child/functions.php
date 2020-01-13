@@ -77,7 +77,7 @@ function archive_page_venue($post_type_args) {
 	]);
 }
 
-require_once 'simple-widget.php';
+require_once 'nearest-events-widget.php';
 
 if( function_exists('acf_add_local_field_group') ):
 	acf_add_local_field_group(array(
