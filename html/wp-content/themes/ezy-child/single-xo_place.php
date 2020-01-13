@@ -20,19 +20,14 @@ if( 'left-sidebar' == $designlayout ){
 ?>
 <div id="primary" class="content-area col-sm-8 col-md-8 <?php echo esc_attr( $side_col );?>">
 		<main id="main" class="site-main" role="main">
-			<?php
-				while ( have_posts() ) : the_post(); get_template_part( 'template-parts/content','single'); ?>
+			<?php render_map(); ?>
 					<div class-"clearfix"></div>
 					<?php
-					print__r($coordinates);
 						// If comments are open or we have at least one comment, load up the comment template.
 						if ( comments_open() || get_comments_number() ) :
 							comments_template();
 						endif;
 					?>
-				<?php
-				endwhile; // End of the loop.
-			?>
 		</main><!-- #main -->
 	</div><!-- #primary -->
 <?php

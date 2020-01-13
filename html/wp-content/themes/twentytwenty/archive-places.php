@@ -14,24 +14,6 @@
  * @since 1.0.0
  */
 
-function render_map() {
-	if (have_posts()) {
-		$shortcode = '[yamap height="50vh" type="yandex#map" controls="typeSelector;zoomControl" auto-bounds=1]';
-
-		while ( have_posts() ) {
-			the_post();
-
-			$custom = get_post_custom();
-			$lon = $custom['lon'][0];
-			$lat = $custom['lat'][0];
-
-			$shortcode .= '[yaplacemark coord="'.$lon.','.$lat.'" icon="islands#blueRailwayIcon" color="#ff751f" name="'.get_the_title().'"]';
-		}
-
-		$shortcode.='[/yamap]';
-		echo do_shortcode($shortcode);
-	}
-}
 
 get_header();
 ?>

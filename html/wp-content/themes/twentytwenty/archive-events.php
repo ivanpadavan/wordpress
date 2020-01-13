@@ -16,14 +16,18 @@
 
 function render_calendar() {
   $my_posts = array();
+  $dates = array();
 	if (have_posts()) {
 		while ( have_posts() ) {
 			the_post();
 			$custom = get_post_custom();
-			$date_from = $custom['date_from'][0];
-			$date_to = $custom['date_to'][0];
+			$date_from = date_create_from_format('Ymd', $custom['date_from'][0]);
+			$date_to = date_create_from_format('Ymd', $custom['date_to'][0]);
 			$place_id = $custom['place'][0];
 			global $post;
+
+			array_push($dates, $date_from);
+			array_push($dates, $date_to);
 
 			array_push($my_posts, array(
 				'title' => $post->post_title,
@@ -46,6 +50,35 @@ function render_calendar() {
 		}
 	}
 	wp_reset_postdata();
+
+	$min_date = min($dates);
+	$max_date = max($dates);
+
+	$min_date_year = date_format($min_date, 'Y');
+	$min_date_month = date_format($min_date, 'n');
+
+	$max_date_year = date_format($max_date, 'Y');
+	$max_date_month = date_format($max_date, 'n');
+
+	echo $min_date_year.'<br>'.$min_date_month.'<br>';
+	echo $max_date_year.'<br>'.$max_date_month.'<br>';
+
+	foreach (range($min_date_year, $max_date_year) as $year) {
+		echo "<h3>$year</h3>";
+		if ($year == $min_date_year && $year == $max_date_year) {
+			foreach (range($min_date_month, $max_date_month) as $month) {
+				echo "<b>$month </b>";
+			}
+		} elseif ($year == $min_date_year) {
+			foreach (range($min_date_month, 12) as $month) {
+				echo "<b>$month </b>";
+			}
+		} elseif ($year == $max_date_year) {
+			foreach (range(1, $max_date_month) as $month) {
+				echo "<b>$month </b>";
+			}
+		}
+	}
 
 	foreach ($my_posts as $key => $value)
 		$my_posts[$key]['place'] = $places[$my_posts[$key]['place_id']];
