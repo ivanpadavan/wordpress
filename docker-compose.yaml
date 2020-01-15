@@ -22,24 +22,14 @@ services:
      depends_on:
        - db
      volumes:
-       - ./html:/var/www/html
+       - ./wp-content:/var/www/html/wp-content
+     ports:
+       - "8765:80"
      restart: always
      environment:
        WORDPRESS_DB_HOST: db:3306
        WORDPRESS_DB_USER: wordpress
        WORDPRESS_DB_PASSWORD: wordpress
        WORDPRESS_DB_NAME: wordpress
-
-   nginx:
-     image: nginx:latest
-     ports:
-       - "8765:80"
-     volumes:
-       - ./nginx/wordpress.conf:/etc/nginx/conf.d/default.conf
-       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-       - ./logs/nginx:/var/log/nginx
-       - ./html:/var/www/html
-     links:
-       - wordpress
 volumes:
     db_data: {}
