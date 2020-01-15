@@ -1,0 +1,14 @@
+FTP-Deploy-Action:
+  name: FTP-Deploy-Action
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@master
+    - name: FTP-Deploy-Action
+      uses: SamKirkland/FTP-Deploy-Action@2.0.0
+      env:
+        FTP_SERVER: 31.31.196.245
+        FTP_USERNAME: u0920929
+        FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        LOCAL_DIR: ./wp-content
+        REMOTE_DIR: ~/www/restavros.ml/wp-content
+        ARGS: --delete
