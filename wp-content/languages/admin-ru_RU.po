@@ -2,7 +2,7 @@
 # This file is distributed under the same license as the WordPress - 5.3.x - Development - Administration package.
 msgid ""
 msgstr ""
-"PO-Revision-Date: 2019-11-28 17:06:16+0000\n"
+"PO-Revision-Date: 2019-12-30 14:10:55+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -251,7 +251,7 @@ msgstr "Параметр %s не зарегистрирован. Незарег�
 
 #: wp-admin/edit-form-advanced.php:374
 msgid "<strong>Format</strong> &mdash; Post Formats designate how your theme will display a specific post. For example, you could have a <em>standard</em> blog post with a title and paragraphs, or a short <em>aside</em> that omits the title and contains a short text blurb. Your theme could enable all or some of 10 possible formats. <a href=\"https://wordpress.org/support/article/post-formats/#supported-formats\">Learn more about each post format</a>."
-msgstr "<strong>Формат</strong> &mdash; Формат записи определяет как тема оформления будет отображать определённую запись, к примеру, вы можете иметь запись <em>стандартная</em> с заголовком и параграфами или короткую <em>заметку</em> без заголовка и с небольшим количеством текста. Ваша тема может ключать все или несколько из доступных 10 форматов.<a href=\"https://wordpress.org/support/article/post-formats/#supported-formats\">Узнайте больше о каждом формате записи</a>."
+msgstr "<strong>Формат</strong> &mdash; Формат записи определяет то, как тема оформления будет отображать определённую запись, к примеру, вы можете иметь запись <em>стандартная</em> с заголовком и параграфами или короткую <em>заметку</em> без заголовка и с небольшим количеством текста. Ваша тема может включать все или несколько из доступных 10 форматов. <a href=\"https://wordpress.org/support/article/post-formats/#supported-formats\">Узнайте больше о каждом формате записи</a>."
 
 #: wp-admin/edit-form-advanced.php:331
 msgid "<a href=\"https://wordpress.org/support/article/pages-screen/\">Documentation on Editing Pages</a>"
@@ -454,7 +454,7 @@ msgstr "Защищена паролем"
 #. translators: %s: The name of the late cron event.
 #: wp-admin/includes/class-wp-site-health.php:1567
 msgid "The scheduled event, %s, is late to run. Your site still works, but this may indicate that scheduling posts or automated updates may not work as intended."
-msgstr "Запланированное задание %s было пропущено. Ваш сайт все ещё работает,  но возможно есть проблемы с автоматическим обновлением или отложенной публикацией записей."
+msgstr "Запланированное задание %s было пропущено. Ваш сайт все ещё работает, но возможно есть проблемы с публикацией запланированных записей или автоматическим обновлением."
 
 #: wp-admin/includes/class-wp-site-health.php:1561
 msgid "A scheduled event is late"
@@ -605,7 +605,7 @@ msgstr "Обзор отчёта об экспорте."
 
 #: wp-admin/options-writing.php:52
 msgid "<a href=\"https://wordpress.org/support/article/settings-writing-screen/\">Documentation on Writing Settings</a>"
-msgstr "<a href=\"https://wordpress.org/support/article/settings-writing-screen/\">L=Документация о настройках написания</a>"
+msgstr "<a href=\"https://ru.wordpress.org/support/article/settings-writing-screen/\">Документация о настройках написания</a>"
 
 #: wp-admin/edit-tags.php:308
 msgid "<a href=\"https://wordpress.org/support/article/posts-tags-screen/\">Documentation on Tags</a>"

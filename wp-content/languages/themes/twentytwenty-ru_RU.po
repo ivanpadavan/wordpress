@@ -2,7 +2,7 @@
 # This file is distributed under the same license as the Themes - Twenty Twenty package.
 msgid ""
 msgstr ""
-"PO-Revision-Date: 2019-11-14 06:37:23+0000\n"
+"PO-Revision-Date: 2020-01-14 22:18:14+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -19,6 +19,10 @@ msgstr "Наша стандартная тема для 2020 года разра
 msgid "Twenty Twenty"
 msgstr "Twenty Twenty"
 
+#: classes/class-twentytwenty-customize.php:246
+msgid "Show author bio"
+msgstr "Показывать информацию об авторе"
+
 #: template-parts/entry-author-bio.php:29
 msgid "View Archive <span aria-hidden=\"true\">&rarr;</span>"
 msgstr "Просмотр архива <span aria-hidden=\"true\">&rarr;</span>"
@@ -28,7 +32,7 @@ msgctxt "Theme starter content"
 msgid "The New UMoMA Opens its Doors"
 msgstr "Обновлённая UMoMA открывает двери"
 
-#: inc/template-tags.php:387
+#: inc/template-tags.php:393
 msgctxt "A string that is output before one or more categories"
 msgid "In"
 msgstr "В"
@@ -94,27 +98,27 @@ msgstr "Первоклассное место для современного и
 msgid "The New UMoMA Opens its Doors"
 msgstr "UMoMA открывает двери"
 
-#: classes/class-twentytwenty-customize.php:374
+#: classes/class-twentytwenty-customize.php:395
 msgid "Overlay Opacity"
 msgstr "Непрозрачность наложения"
 
-#: classes/class-twentytwenty-customize.php:354
+#: classes/class-twentytwenty-customize.php:375
 msgid "The color used for the text in the overlay."
 msgstr "Этот цвет используется для текста при наложении."
 
-#: classes/class-twentytwenty-customize.php:353
+#: classes/class-twentytwenty-customize.php:374
 msgid "Overlay Text Color"
 msgstr "Цвет текста наложения"
 
-#: classes/class-twentytwenty-customize.php:332
+#: classes/class-twentytwenty-customize.php:353
 msgid "The color used for the overlay. Defaults to the accent color."
 msgstr "Этот цвет будет использоваться при наложении. По умолчанию - цвет акцентирования."
 
-#: classes/class-twentytwenty-customize.php:331
+#: classes/class-twentytwenty-customize.php:352
 msgid "Overlay Background Color"
 msgstr "Цвет фона для наложения"
 
-#: classes/class-twentytwenty-customize.php:262
+#: classes/class-twentytwenty-customize.php:283
 msgid "Settings for the \"Cover Template\" page template. Add a featured image to use as background."
 msgstr "Настройки для шаблона страницы \"шаблон обложки\". Добавьте изображение страницы для использования в качестве фона."
 
@@ -134,7 +138,7 @@ msgstr "По умолчанию"
 msgid "Primary Color"
 msgstr "Основной цвет"
 
-#: searchform.php:24 template-parts/modal-search.php:20
+#: template-parts/modal-search.php:20 searchform.php:24
 msgid "Search for:"
 msgstr "Поиск:"
 
@@ -215,7 +219,7 @@ msgid "Footer"
 msgstr "Подвал"
 
 #. translators: %s: Author name
-#: template-parts/entry-author-bio.php:20 inc/template-tags.php:348
+#: template-parts/entry-author-bio.php:20 inc/template-tags.php:354
 msgid "By %s"
 msgstr "Автор: %s"
 
@@ -254,24 +258,24 @@ msgstr "Поиск:"
 msgid "Edit <span class=\"screen-reader-text\">%s</span>"
 msgstr "Редактировать <span class=\"screen-reader-text\">%s</span>"
 
-#: inc/template-tags.php:439
+#: inc/template-tags.php:445
 msgid "Sticky post"
 msgstr "Закрепленная запись"
 
-#: inc/template-tags.php:401
+#: inc/template-tags.php:407
 msgid "Tags"
 msgstr "Метки"
 
-#: template-parts/entry-header.php:36 template-parts/content-cover.php:70
-#: inc/template-tags.php:383
+#: template-parts/content-cover.php:70 template-parts/entry-header.php:36
+#: inc/template-tags.php:389
 msgid "Categories"
 msgstr "Рубрики"
 
-#: inc/template-tags.php:365
+#: inc/template-tags.php:371
 msgid "Post date"
 msgstr "Дата записи"
 
-#: inc/template-tags.php:341
+#: inc/template-tags.php:347
 msgid "Post author"
 msgstr "Автор записи"
 
@@ -279,7 +283,7 @@ msgstr "Автор записи"
 msgid "Social Links Menu"
 msgstr "Меню социальных ссылок"
 
-#: inc/starter-content.php:176 inc/starter-content.php:186 functions.php:491
+#: functions.php:491 inc/starter-content.php:176 inc/starter-content.php:186
 msgid "Primary"
 msgstr "Основное"
 
@@ -393,7 +397,7 @@ msgstr "Развернутое меню для компьютера"
 
 #: functions.php:255
 msgid "Desktop Horizontal Menu"
-msgstr "Горизонтальное меню для компютера"
+msgstr "Горизонтальное меню для компьютера"
 
 #: footer.php:33
 msgid "Powered by WordPress"
@@ -434,7 +438,7 @@ msgstr "Один ответ к &ldquo;%s&rdquo;"
 msgid "Leave a comment"
 msgstr "Оставьте комментарий"
 
-#: classes/class-twentytwenty-walker-page.php:134 inc/template-tags.php:545
+#: classes/class-twentytwenty-walker-page.php:134 inc/template-tags.php:555
 msgid "Show sub menu"
 msgstr "Показывать подменю"
 
@@ -464,32 +468,32 @@ msgstr "%1$s в %2$s"
 msgid "says:"
 msgstr "пишет:"
 
-#: classes/class-twentytwenty-customize.php:375
+#: classes/class-twentytwenty-customize.php:396
 msgid "Make sure that the contrast is high enough so that the text is readable."
 msgstr "Убедитесь, что контраст достаточен для читабельности текста."
 
-#: classes/class-twentytwenty-customize.php:285
+#: classes/class-twentytwenty-customize.php:306
 msgid "Creates a parallax effect when the visitor scrolls."
 msgstr "Создание эффекта параллакса при прокрутке страницы посетителем."
 
-#: classes/class-twentytwenty-customize.php:284
+#: classes/class-twentytwenty-customize.php:305
 msgid "Fixed Background Image"
 msgstr "Фиксированное фоновое изображение"
 
 #. Template Name of the theme
-#: classes/class-twentytwenty-customize.php:260
+#: classes/class-twentytwenty-customize.php:281
 msgid "Cover Template"
 msgstr "Шаблон обложки"
 
-#: classes/class-twentytwenty-customize.php:249
+#: classes/class-twentytwenty-customize.php:270
 msgid "Summary"
 msgstr "анонс"
 
-#: classes/class-twentytwenty-customize.php:248
+#: classes/class-twentytwenty-customize.php:269
 msgid "Full text"
 msgstr "полный текст"
 
-#: classes/class-twentytwenty-customize.php:246
+#: classes/class-twentytwenty-customize.php:267
 msgid "On archive pages, posts show:"
 msgstr "На страницах архивов страниц и записей показывать:"
 
@@ -515,7 +519,7 @@ msgstr "Логотип Retina"
 
 #: 404.php:19
 msgid "The page you were looking for could not be found. It might have been removed, renamed, or did not exist in the first place."
-msgstr "Страница, которую вы ищете не найдена, возможно она была удалена, переименована или никогда не существовала."
+msgstr "Страница, которую вы ищете, не найдена. Возможно, она была удалена, переименована или никогда не существовала."
 
 #: 404.php:17
 msgid "Page Not Found"
