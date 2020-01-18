@@ -14,4 +14,4 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           LOCAL_DIR: ./wp-content
           REMOTE_DIR: ~/www/restavros.ml/wp-content
-          ARGS: --delete --verbose -R -n
+          ARGS: --delete --verbose -n --ignore-time
