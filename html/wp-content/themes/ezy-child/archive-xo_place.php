@@ -29,7 +29,7 @@ if( 'left-sidebar' == $designlayout ){
 			</div><!-- .page-header -->
 			<?php
 
-      echo render_map();
+      render_map();
 
 			do_action('ezy_action_navigation');
 	?>

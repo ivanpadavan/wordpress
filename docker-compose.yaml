@@ -22,7 +22,7 @@ services:
      depends_on:
        - db
      volumes:
-       - ./wp-content:/var/www/html/wp-content
+       - ./html/wp-content:/var/www/html/wp-content
      ports:
        - "8765:80"
      restart: always
