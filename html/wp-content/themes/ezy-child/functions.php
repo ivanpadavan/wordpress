@@ -125,7 +125,9 @@ if( function_exists('acf_add_local_field_group') ):
 				the_post();
 				$custom = (array) json_decode(get_field('coordinates', $post));
 				[coords => [0 => $lon, 1 => $lat], icon => $icon] = $custom;
-				$shortcode .= '[yaplacemark coord="'.$lon.','.$lat.'" url="'.get_permalink().'" icon="'.$icon.'" color="#ff751f" name="'.get_the_title().'"]';
+				if ($lat && $lon) {
+					$shortcode .= '[yaplacemark coord="'.$lon.','.$lat.'" url="'.get_permalink().'" icon="'.$icon.'" color="#ff751f" name="'.get_the_title().'"]';
+				}
 			}
 			$shortcode.='[/yamap]';
 			echo do_shortcode($shortcode);

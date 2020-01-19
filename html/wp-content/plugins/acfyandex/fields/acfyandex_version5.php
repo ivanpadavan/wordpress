@@ -31,7 +31,7 @@ class acfyandex_version extends acfyandex_common {
           const fieldValueEl = document.getElementById("<?php echo $field['id'] ?>")
           function updateFieldValue(val) {
               fieldValueEl.value = JSON.stringify(
-                  Object.assign(JSON.parse(fieldValueEl.value), val),
+                  Object.assign(JSON.parse(fieldValueEl.value) || {}, val),
               );
           }
           ymaps.ready(init);
