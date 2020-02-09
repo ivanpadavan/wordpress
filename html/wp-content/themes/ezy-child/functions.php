@@ -60,7 +60,6 @@ function use_images_from_wp_gallery( $images, $meta_id, $type, $atts ) {
 			'post_type'      => 'attachment',
 			'post_mime_type' => 'image',
 			'numberposts'    => 999,
-
 		) );
 
 		$images_order = array_flip($image_ids);
@@ -69,6 +68,15 @@ function use_images_from_wp_gallery( $images, $meta_id, $type, $atts ) {
 	$image_ids = [];
 	return $images;
 }
+
+add_filter( 'evc_vk_albums_get_photos', 'remove_info', 91 );
+function remove_info( $photos ) {
+	foreach ( $photos as $photo ) {
+		$photo->post_content = '';
+	}
+	return $photos;
+}
+
 
 add_filter( 'tribe_events_register_venue_type_args', 'archive_page_venue' );
 function archive_page_venue($post_type_args) {
