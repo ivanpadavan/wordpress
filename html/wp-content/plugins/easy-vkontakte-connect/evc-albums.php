@@ -345,7 +345,7 @@ function evc_vk_albums_evc_meta_box_action( $custom ) {
 
 	$defaults = array(
 		'url'       => '',
-		'count'     => 10,
+		'count'     => 999,
 		'orderby'   => 'date',
 		'order'     => 'desc',
 		'ug'        => '"margins":2, "lineHeight": 2, "maxRowHeight": 125',
