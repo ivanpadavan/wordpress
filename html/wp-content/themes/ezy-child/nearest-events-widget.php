@@ -64,11 +64,11 @@ class NearestEventsWidget extends WP_Widget {
 			echo $before_title . esc_html( $title ) . $after_title;
 		}
 		$events = $xo_event_calendar->get_nearest_events(new DateTime(), 5, $instance['terms']);
-		echo "<p><ul>";
+		echo "<ul>";
 		foreach ( $events as ['title' => $title, 'permalink' => $permalink] ) {
 			echo "<li><a href='$permalink'>$title</a></li>";
 		}
-		echo "</ul></p>";
+		echo "</ul>";
 		echo $after_widget;
 	}
 
