@@ -27,15 +27,6 @@ Updated: 2020-01-04 00:30:09
     width: 100%!important;
 }
 
-.tribe-events-list-widget *:nth-child(n + 1) {
-    margin-left: 1rem;
-    margin-right: 1rem;
+.post-content p {
+    line-height: 22px;!important;
 }
-.tribe-events-list-widget  *:nth-child(2) {
-    margin-top: 1rem;
-}
-.tribe-events-list-widget  *:last-child {
-    padding-bottom: 1rem;
-}
-
-
