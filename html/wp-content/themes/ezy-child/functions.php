@@ -65,6 +65,9 @@ function use_images_from_wp_gallery( $images, $meta_id, $type, $atts ) {
 		$images_order = array_flip($image_ids);
 		usort($images, fn($a, $b) => $images_order[$a->ID] <=> $images_order[$b->ID]);
 	}
+	foreach ($images as $image) {
+		$image->title = !empty($image->post_excerpt) ? $image->post_excerpt : ' ';
+	}
 	$image_ids = [];
 	return $images;
 }
