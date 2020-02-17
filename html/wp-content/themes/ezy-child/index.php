@@ -39,8 +39,6 @@ if( 'left-sidebar' == $designlayout ){
 			endif;
   		global $wp_query;
 
-  		echo do_shortcode('[xo_event_calendar]');
-
 			/* Start the Loop */
 
 			while ( have_posts() ) : the_post();
