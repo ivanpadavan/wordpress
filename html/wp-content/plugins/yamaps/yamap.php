@@ -78,7 +78,6 @@ function yaplacemark_func($atts) {
 	$atts = shortcode_atts( array(
 		'coord' => '',
 		'name' => '',
-		'color' => 'blue',
 		'url' => '',
 		'icon' => 'islands#dotIcon',
 	), $atts );
@@ -107,7 +106,7 @@ function yaplacemark_func($atts) {
 
 
 	$yaplacemark='
-		YaMapsWP.myMap'.$maps_count.'.places.placemark'.$yaplacemark_count.' = {icon: "'.$atts["icon"].'", name: "'.$atts["name"].'", color: "'.$atts["color"].'", coord: "'.$atts["coord"].'", url: "'.$atts["url"].'",};
+		YaMapsWP.myMap'.$maps_count.'.places.placemark'.$yaplacemark_count.' = {icon: "'.$atts["icon"].'", name: "'.$atts["name"].'", coord: "'.$atts["coord"].'", url: "'.$atts["url"].'",};
 		myMap'.$maps_count.'placemark'.$yaplacemark_count.' = new ymaps.Placemark(['.$atts["coord"].'], {
                                 hintContent: "'.$yahint.'",
                                 iconContent: "'.$yacontent.'",
@@ -128,7 +127,6 @@ function yaplacemark_func($atts) {
     else {
     	$yaplacemark.='                        
                             	preset: "'.$atts["icon"].'", 
-                            	iconColor: "'.$atts["color"].'",
                             });  
 		';
     }
