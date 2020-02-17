@@ -194,7 +194,6 @@ class acfyandex_plugin {
 	}
 
 	public function startSession() {
-		//if(current_user_can('manage_options'))
 		if ( ! is_plugin_active( 'advanced-custom-fields/acf.php' ) ) {
 			add_action( 'admin_notices', [ 'acfyandex_plugin', 'message_admin_error' ] );
 		}
@@ -241,6 +240,10 @@ class acfyandex_plugin {
 		}
 
 		return $arr;
+	}
+
+	public static function message_admin_error() {
+
 	}
 }
 
