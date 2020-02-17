@@ -266,7 +266,7 @@ class XO_Event_Calendar {
 			'orderby' => array( 'event_start_date' => 'ASC' ),
 			'meta_query' => array (
 				'key' => 'event_start_date',
-				'value' => date( 'Y-m-d', +$start_date ),
+				'value' => date( 'Y-m-d', $start_date->getTimestamp() ),
 				'compare' => '<=',
 				'type' => 'DATE'
 			),
