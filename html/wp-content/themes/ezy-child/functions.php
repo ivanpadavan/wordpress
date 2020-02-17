@@ -126,13 +126,14 @@ if( function_exists('acf_add_local_field_group') ):
 		'description' => '',
 	));
 	function render_map() {
+		global $post;
 		if (have_posts()) {
 			$shortcode = '[yamap height="50vh" type="yandex#map" controls="typeSelector;zoomControl" auto-bounds=1]';
 
 			while ( have_posts() ) {
 				the_post();
 				$custom = (array) json_decode(get_field('coordinates', $post));
-				[coords => [0 => $lon, 1 => $lat], icon => $icon] = $custom;
+				['coords' => [0 => $lon, 1 => $lat], 'icon' => $icon] = $custom;
 				if ($lat && $lon) {
 					$shortcode .= '[yaplacemark coord="'.$lon.','.$lat.'" url="'.get_permalink().'" icon="'.$icon.'" color="#ff751f" name="'.get_the_title().'"]';
 				}
