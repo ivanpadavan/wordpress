@@ -254,7 +254,7 @@ function yamap_func($atts, $content){
 								}";
                             }
                             if ( $atts['auto-bounds'] ):
-                                $yamap.= 'myMap'.$maps_count.'.setBounds(myMap'.$maps_count.'.geoObjects.getBounds());';
+                                $yamap.= 'myMap'.$maps_count.'.setBounds(myMap'.$maps_count.'.geoObjects.getBounds());myMap'.$maps_count.'.setZoom(Math.min(17, myMap'.$maps_count.'.getZoom() - 1))';
                             endif;
                             $yamap.='
 
