@@ -30,3 +30,20 @@ Updated: 2020-01-04 00:30:09
 .post-content p {
     line-height: 22px;!important;
 }
+
+.archive-heading-wrapper {
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.05);
+}
+
+.px {
+    padding-left: .7rem;
+    padding-right: .7rem;
+}
+
+.pb {
+    padding-bottom: 2rem;
+}
+
+.mb {
+    margin-bottom: 2rem;
+}

@@ -48,7 +48,9 @@ if( 'left-sidebar' == $designlayout ){
 			[$year, $month] = array_map(fn($s) => $date_from->format($s), ['Y', 'm']);
   		$diff = $date_from->diff($date_to);
 			$months = $diff->y * 12 + $diff->m + 1;
+			echo '<article class="post"><div class="post-wrapper px pb mb">';
 			echo do_shortcode("[xo_event_calendar year=$year month=$month months=$months navigation=false]");
+			echo '</div></article>';
 
 			do_action('ezy_action_navigation');
 	?>

@@ -27,13 +27,14 @@ if( 'left-sidebar' == $designlayout ){
 					the_archive_description( '<div class="archive-description">', '</div>' );
 				?>
 			</div><!-- .page-header -->
+      <div class="post-wrapper mb">
 			<?php
 
       render_map();
 
 			do_action('ezy_action_navigation');
 	?>
-
+      </div>
 		</main><!-- #main -->
 	</div><!-- #primary -->
 <?php
