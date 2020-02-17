@@ -38,8 +38,8 @@ if( 'left-sidebar' == $designlayout ){
 				return new DateTime( $fallback );
 			}
 
-			$date_from = try_set_date($_GET['from'], 'first day of january');
-			$date_to = try_set_date($_GET['to'], 'first day of december');
+			$date_from = try_set_date($_GET['from'] ?? null, 'first day of january');
+			$date_to = try_set_date($_GET['to'] ?? null, 'first day of december');
 
 			if ($date_from > $date_to) {
 				$date_to = new DateTime('now');
