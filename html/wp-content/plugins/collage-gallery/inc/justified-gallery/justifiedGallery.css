@@ -107,6 +107,8 @@
   font-size: 12px;
   font-weight: 300;
   font-family: sans-serif;
+  pointer-events: none;
+  height: 100%;
 }
 .justified-gallery > a > .caption.caption-visible,
 .justified-gallery > div > .caption.caption-visible {
