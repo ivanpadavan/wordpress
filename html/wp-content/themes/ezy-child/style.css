@@ -14,6 +14,7 @@ Updated: 2020-01-04 00:30:09
 .header-lower {
     margin-bottom: 0;
 }
+
 #primary, #secondary {
     padding-top: 30px;
 }
@@ -24,11 +25,65 @@ Updated: 2020-01-04 00:30:09
 }
 
 #primary:last-child {
-    width: 100%!important;
+    width: 100% !important;
 }
 
 .post-content p {
-    line-height: 22px;!important;
+    line-height: 22px;
+!important;
+}
+
+body {
+    background: #d1cfb5;
+}
+
+header {
+    background: #d1cfb5;
+}
+
+.header-lower {
+    border-top: 1px solid #5D6A51;
+    border-bottom: 1px solid #5D6A51;
+    background: #2c5245;
+}
+
+aside .widget, .post-wrapper {
+    border-radius: 1px;
+    overflow: hidden;
+    background: #2d5447;
+}
+
+aside .widget .widget-title, .post-header {
+    background: #2c5245;
+    border-bottom: 1px solid #5D6A51;
+}
+
+.widget ul li:not(:first-child) {
+    border-top-color: #5D6A51;
+}
+
+.widget ul, .post-content-wrapper {
+    background-color: #fef6ec;
+}
+
+.widget, .post-wrapper {
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+}
+
+.widget {
+    box-shadow: 0 0 0 2px #fbe3b3,
+    0 0 0 5px #2c5245,
+    0 0 0 7px #FBE3BD,
+    0 0 10px rgba(0, 0, 0, 0.15);
+}
+
+.post-content-wrapper {
+    margin: 0;
+}
+
+.post-header, .post-title, .post-content, .post-footer {
+    padding-left: 32px;
+    padding-right: 32px;
 }
 
 .archive-heading-wrapper {
@@ -55,4 +110,8 @@ button.navbar-toggle {
 
 button.navbar-toggle .icon-bar {
     background: #292929 !important;
+}
+
+.main-menu .navigation > li > ul > li > a:after {
+    display: none;
 }
