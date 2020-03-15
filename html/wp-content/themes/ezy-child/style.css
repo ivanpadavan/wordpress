@@ -32,7 +32,7 @@ Updated: 2020-01-04 00:30:09
     line-height: 22px;
 !important;
 }
-
+/*
 body {
     background: #d1cfb5;
 }
@@ -76,7 +76,7 @@ aside .widget .widget-title, .post-header {
     0 0 0 7px #FBE3BD,
     0 0 10px rgba(0, 0, 0, 0.15);
 }
-
+/*
 .post-content-wrapper {
     margin: 0;
 }
@@ -113,5 +113,5 @@ button.navbar-toggle .icon-bar {
 }
 
 .main-menu .navigation > li > ul > li > a:after {
-    display: none;
+    display: none !important;
 }
