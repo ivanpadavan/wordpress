@@ -182,7 +182,7 @@ function evc_post_sidebar_css( $sidebar = 'bp' ) {
 	if ( empty( $out ) ) {
 		$out = '';
 	}
-	
+
 	return $out;
 }
 
@@ -199,7 +199,7 @@ function evc_vk_init() {
 	}
 }
 
-//add_action('admin_footer', 'evc_vk_async_init'); 
+//add_action('admin_footer', 'evc_vk_async_init');
 add_action( 'wp_footer', 'evc_vk_async_init' );
 function evc_vk_async_init() {
 	//$options = get_option('evc_options');
@@ -746,7 +746,7 @@ if ( ! class_exists( 'WP_Settings_API_Class' ) ) {
     'evc_sidebar_before_post_content',
     'evc_sidebar_after_post_content',
     'evc_autopost'
-  ));   
+  ));
 
 */
 
@@ -832,7 +832,9 @@ function evc_vk_api_settings_admin_init() {
 	$url     = site_url();
 	$url2    = str_ireplace( 'www.', '', parse_url( $url, PHP_URL_HOST ) );
 	$url_arr = explode( ".", basename( $url2 ) );
-	$domain  = $url_arr[ count( $url_arr ) - 2 ] . "." . $url_arr[ count( $url_arr ) - 1 ];
+	$domain  = count($url_arr) > 1
+      ? $url_arr[ count( $url_arr ) - 2 ] . "." . $url_arr[ count( $url_arr ) - 1 ]
+      : $url_arr[0];
 
 	$site_app_id_desc = '<p>Чтобы получить доступ к <b>API ВКонтакте</b>, вам нужно <a href="http://vk.com/editapp?act=create" target="_blank">создать приложение</a> со следующими настройками:</p>
   <ol>
@@ -2619,10 +2621,10 @@ function evc_is_mg() {
 }
 
 
-/* 
-* 
+/*
+*
 *   EVC AUTOPOST ONLINE STATS
-* 
+*
 */
 
 add_action( 'admin_init', 'evc_autopost_load_scripts' );
