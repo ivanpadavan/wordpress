@@ -50,14 +50,14 @@
 						</h2>
 			<?php   } ?>
 			    </span>
-			    <span class="post-category">
+			    <!--span class="post-category">
 			    	<?php
                        $categories = get_the_category();
                        if ( ! empty( $categories ) ) {
                           echo '<a href="'.esc_url( get_category_link( $categories[0]->term_id ) ).'" title="Post Single">'.esc_html( $categories[0]->name ).'</a>';
                       }
                   ?>
-			    </span>
+			    </span-->
 			</div>
 
 			<div class="post-title">
