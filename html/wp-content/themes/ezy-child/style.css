@@ -32,11 +32,6 @@ html, body {
     width: 100% !important;
 }
 
-.post-content p {
-    line-height: 22px;
-!important;
-}
-
 button.navbar-toggle {
     border: none !important;
     background: none !important;
