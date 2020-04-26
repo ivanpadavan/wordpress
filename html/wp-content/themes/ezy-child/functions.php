@@ -146,3 +146,24 @@ if( function_exists('acf_add_local_field_group') ):
 		}
 	}
 endif;
+
+add_action('acf/init', 'my_acf_init');
+function my_acf_init() {
+
+	// check function exists
+	if( function_exists('acf_register_block') ) {
+
+		// register a testimonial block
+		acf_register_block(array(
+			'name'				=> 'slider',
+			'title'				=> __('Slider'),
+			'description'		=> __('Swiper slider'),
+			'render_template'	=> 'blocks/slider.php',
+			'enqueue_script'	=> "https://unpkg.com/swiper/js/swiper.min.js",
+			'enqueue_style'	    => "https://unpkg.com/swiper/css/swiper.min.css",
+			'category'			=> 'formatting',
+			'icon'				=> 'admin-comments',
+			'keywords'			=> array( 'testimonial', 'quote' ),
+		));
+	}
+}

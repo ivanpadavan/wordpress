@@ -15,6 +15,13 @@ html, body {
     font-family: Cormorant Garamond, sans-serif !important;
 }
 
+body, header {
+    background: #fefaeb;
+}
+
+.header-lower {
+F}
+
 .header-lower {
     margin-bottom: 0;
 }

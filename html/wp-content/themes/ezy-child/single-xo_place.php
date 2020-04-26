@@ -20,7 +20,10 @@ if( 'left-sidebar' == $designlayout ){
 ?>
 <div id="primary" class="content-area col-sm-8 col-md-8 <?php echo esc_attr( $side_col );?>">
 		<main id="main" class="site-main" role="main">
-			<?php render_map(); ?>
+			<?php
+	  the_content();
+	  render_map();
+      ?>
 					<div class-"clearfix"></div>
 					<?php
 						// If comments are open or we have at least one comment, load up the comment template.

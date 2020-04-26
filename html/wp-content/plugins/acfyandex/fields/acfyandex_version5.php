@@ -6,6 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class acfyandex_version extends acfyandex_common {
 	public function render_field( $field ) {
 		$value = json_decode( $field['value'] );
+		print__r($value);
 	  $value->icon ??= 'islands#redStretchyIcon';
 		?>
       <input type="hidden" id="<?php echo $field['id'] ?>"
