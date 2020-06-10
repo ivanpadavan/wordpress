@@ -23,10 +23,32 @@ Version: 4.2.7.1591793894
     transform: translate(-50%, -50%);
 }
 
+[margin-x-0] {
+    margin-left: 0!important;
+    margin-right: 0!important;
+}
+[padding-x-0], .padding-x-0 {
+    padding-left: 0!important;
+    padding-right: 0!important;
+}
+
 header .navbar-inner {
     display: flex;
     align-items: center;
 }
 .tc-wp-powered-text, .icon-wordpress, .tc-credits-text {
     display: none !important;
+}
+
+.sticky-enabled .tc-shrink-on .site-logo img {
+    height: 50px!important;
+    width: auto!important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    text-shadow: none;
+}
+
+header.tc-header {
+    border-bottom: 1px!important;
 }

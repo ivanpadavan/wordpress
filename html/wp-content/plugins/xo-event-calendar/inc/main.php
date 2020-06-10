@@ -197,6 +197,7 @@ class XO_Event_Calendar {
 			'menu_icon' => 'dashicons-calendar-alt',
 			'supports' => array( 'title', 'editor', 'excerpt', 'thumbnail' ),
 			'has_archive' => true,
+			'show_in_nav_menus' => true,
 			'show_in_rest' => true,
 		);
 		$args = apply_filters( 'xo_event_calendar_register_post_args', $args );
@@ -221,6 +222,7 @@ class XO_Event_Calendar {
 			'show_ui' => true,
 			'query_var' => true,
 			'rewrite' => array( 'slug' => $taxonomy_type ),
+			'show_in_nav_menus' => true,
 			'show_in_rest' => true,
 		);
 		$args = apply_filters( 'xo_event_calendar_register_taxonomy_args', $args );
