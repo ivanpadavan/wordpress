@@ -1,6 +1,6 @@
 <?php
 /*
-* Header Hook Section
+* Header Hook Section 
 * @since 1.0.0
 */
 /* ------------------------------
@@ -111,35 +111,40 @@ if ( ! function_exists( 'ezy_header_section' ) ) :
 						<div class="logo-header-inner col-sm-12">
 		                   <?php
 		                      if (has_custom_logo()) { ?>
-
-		                    <a href="<?php echo esc_url( home_url( '/' ) ); ?>">
+		                   
+		                    <a href="<?php echo esc_url( home_url( '/' ) ); ?>"> 
 		                    	<?php  the_custom_logo();?>
 		                    </a>
-		                  <?php }
+		                  <?php } 
 		                  	else {
-		                  ?>
+		                  ?>  
 		                    <div class="togo-text">
+		                    	<?php
+								if ( is_front_page() && is_home() ) : ?>
 									<h1 class="site-title"><a href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home"><?php bloginfo( 'name' ); ?></a></h1>
+								<?php else : ?>
+									<p class="site-title"><a href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home"><?php bloginfo( 'name' ); ?></a></p>
 									<?php
+								endif;
 								$description = get_bloginfo( 'description', 'display' );
 								if ( $description || is_customize_preview() ) : ?>
 									<p class="site-description"><?php echo $description; /* WPCS: xss ok. */ ?></p>
 									<?php
 								endif; ?>
 		                    </div>
-		                 <?php } ?>
+		                 <?php } ?>   
 						</div>
 					</div>
 					<div class="col-sm-4">
 						<div class="social-links">
-							<?php
+							<?php 
 							if (has_nav_menu('social') && $ezy_header_social == 1 )
 							 {
 							wp_nav_menu( array( 'theme_location' => 'social', 'menu_class
-									' => 'nav navbar-social' ) );
+									' => 'nav navbar-social' ) ); 
 							 }
 							?>
-
+							
 						</div>
 					</div>
 				</div>
@@ -171,7 +176,7 @@ if ( ! function_exists( 'ezy_header_lower_section' ) ) :
     		<!-- Main Menu -->
             <nav class="main-menu">
             	<div class="navbar-header">
-                    <!-- Toggle Button -->
+                    <!-- Toggle Button -->    	
                     <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
                     	<span class="sr-only"><?php _e('Toggle navigation', 'ezy');?></span>
                         <span class="icon-bar"></span>
@@ -180,10 +185,10 @@ if ( ! function_exists( 'ezy_header_lower_section' ) ) :
                     </button>
                 </div>
                 <div class="navbar-collapse collapse clearfix">
-					<?php
+					<?php 
 						if ( has_nav_menu('primary'))
 							{
-								wp_nav_menu( array( 'theme_location' => 'primary', 'menu_class' => 'navigation ' ) );
+								wp_nav_menu( array( 'theme_location' => 'primary', 'menu_class' => 'navigation ' ) ); 
 							}
 						  else
 						  { ?>
@@ -192,14 +197,14 @@ if ( ! function_exists( 'ezy_header_lower_section' ) ) :
 			                        <a href="<?php echo esc_url(admin_url( 'nav-menus.php' )); ?> "> <?php esc_html_e('Add a menu','ezy'); ?></a>
 			                    </li>
 			                </ul>
-					<?php }
+					<?php }		
 					?>
 				</div><!-- /.navbar-collapse -->
 				<?php
 					global $ezy_theme_options;
 					$ezy_theme_options  = ezy_get_theme_options();
 					$ezy_header_search  = $ezy_theme_options['ezy-header-search'];
-					if ($ezy_header_search == 1 ):
+					if ($ezy_header_search == 1 ): 
 				?>
 				<div class="search-icon">
 				    <a href="#search"><i class="fa fa-search"></i></a>
@@ -207,7 +212,7 @@ if ( ! function_exists( 'ezy_header_lower_section' ) ) :
 				<div id="search">
 					<div class="top-search-wrapper">
 				        <button type="button" class="close"><?php esc_html_e('×','ezy'); ?></button>
-				        <?php
+				        <?php 
 							get_search_form();
 						?>
 					</div>
@@ -295,7 +300,7 @@ if ( ! function_exists( 'ezy_header_promo_action' ) ) :
 											<div class="promo-wrapper-content">
 												<h2 class="pro_post_title"><?php the_title(); ?></h2>
 												<div class="category-tag">
-													<?php $posttags = wp_get_post_tags( get_the_ID() );
+													<?php $posttags = wp_get_post_tags( get_the_ID() );												
 
 													if( !empty( $posttags ))
 													{
@@ -303,7 +308,7 @@ if ( ! function_exists( 'ezy_header_promo_action' ) ) :
 														<span>
 															<?php
 																$count = 0;
-																if ( $posttags )
+																if ( $posttags ) 
 																{
 																  foreach( $posttags as $tag )
 																   {
@@ -332,7 +337,7 @@ if ( ! function_exists( 'ezy_header_promo_action' ) ) :
 											</figure>
 											<?php   } ?>
 
-
+											
 										</a>
 									</div>
 								</div>
@@ -367,7 +372,7 @@ if ( ! function_exists( 'ezy_header_end_wrapper' ) ) :
 		<?php if( !is_page_template('elementor_header_footer') ){ ?>
 			<div class="container">
 			<div class="row">
-
+		
 		<?php
 		}
     }

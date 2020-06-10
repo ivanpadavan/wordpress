@@ -36,7 +36,7 @@
 						<h2>
 							<?php
 								$count = 0;
-								if ( $posttags )
+								if ( $posttags ) 
 								{
 								  foreach( $posttags as $tag )
 								   {
@@ -50,16 +50,16 @@
 						</h2>
 			<?php   } ?>
 			    </span>
-			    <!--span class="post-category">
+			    <span class="post-category">
 			    	<?php
                        $categories = get_the_category();
                        if ( ! empty( $categories ) ) {
                           echo '<a href="'.esc_url( get_category_link( $categories[0]->term_id ) ).'" title="Post Single">'.esc_html( $categories[0]->name ).'</a>';
-                      }
+                      }                                 
                   ?>
-			    </span-->
+			    </span>
 			</div>
-
+			
 			<div class="post-title">
 				<?php
 				if ( is_single() ) :
@@ -84,6 +84,26 @@
 					) );
 				?>
 			</div><!-- .entry-content -->
+			<div class="post-order">
+				<?php
+					the_post_navigation( array(
+						'next_text' => '<span class="meta-nav" aria-hidden="true">' . __( 'Next', 'ezy' ) . '</span> ' .
+
+							'<span class="screen-reader-text">' . __( 'Next post:', 'ezy' ),
+
+						'prev_text' => '<span class="meta-nav" aria-hidden="true">' . __( 'Previous', 'ezy' ) . '</span> ' .
+
+							'<span class="screen-reader-text">' . __( 'Previous post:', 'ezy' ),
+					) );
+					/**
+                     * ezy_related_posts hook
+                     * 
+                     * @since Ezy 1.0.0
+                     * @hooked ezy_related_posts
+                     */
+	                do_action('ezy_related_posts' ,get_the_ID() );
+				?>
+			</div>
 		</div>
 	</div>
 </article><!-- #post-## -->
