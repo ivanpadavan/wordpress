@@ -80,6 +80,7 @@ function yaplacemark_func($atts) {
 		'name' => '',
 		'url' => '',
 		'icon' => 'islands#dotIcon',
+		'balloon' => '',
 	), $atts );
 
 	global $yaplacemark_count, $maps_count;
@@ -110,7 +111,8 @@ function yaplacemark_func($atts) {
 		myMap'.$maps_count.'placemark'.$yaplacemark_count.' = new ymaps.Placemark(['.$atts["coord"].'], {
                                 hintContent: "'.$yahint.'",
                                 iconContent: "'.$yacontent.'",
-
+                                iconCaption: "'.$yahint.'",
+                                balloonContent: "'.$atts['balloon'].'",
 
                               
                             }, {';
@@ -252,7 +254,7 @@ function yamap_func($atts, $content){
 								}";
                             }
                             if ( $atts['auto-bounds'] ):
-                                $yamap.= 'myMap'.$maps_count.'.setBounds(myMap'.$maps_count.'.geoObjects.getBounds());myMap'.$maps_count.'.setZoom(Math.min(17, myMap'.$maps_count.'.getZoom() - 1))';
+                                $yamap.= 'myMap'.$maps_count.'.setBounds(myMap'.$maps_count.'.geoObjects.getBounds());myMap'.$maps_count.'.setZoom(Math.min(12, myMap'.$maps_count.'.getZoom()))';
                             endif;
                             $yamap.='
 
