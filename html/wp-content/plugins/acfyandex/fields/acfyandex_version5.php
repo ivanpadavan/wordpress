@@ -6,8 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class acfyandex_version extends acfyandex_common {
 	public function render_field( $field ) {
 		$value = json_decode( $field['value'] );
-		print__r($value);
-	  $value->icon ??= 'islands#redStretchyIcon';
+		$value->icon ??= 'islands#redChristianCircleIcon';
 		?>
       <input type="hidden" id="<?php echo $field['id'] ?>"
              name="<?php echo esc_attr( $field['name'] ) ?>"
@@ -15,8 +14,12 @@ class acfyandex_version extends acfyandex_common {
       />
 
       <label>
-        Тип метки
+        Иконка
         <select id="icon"></select>
+      </label>
+      <label>
+        Цвет
+        <select id="color"></select>
       </label>
 
       <label>
@@ -30,43 +33,77 @@ class acfyandex_version extends acfyandex_common {
       <div id="map" style="width: 100%; height: 250px"></div>
       <script type="text/javascript">
           const fieldValueEl = document.getElementById("<?php echo $field['id'] ?>")
+
           function updateFieldValue(val) {
               fieldValueEl.value = JSON.stringify(
                   Object.assign(JSON.parse(fieldValueEl.value) || {}, val),
               );
+              console.log(JSON.parse(fieldValueEl.value, undefined, 2));
           }
+
           ymaps.ready(init);
           ymaps.ready();
 
-          function makeTypeSelectable(placemark) {
-              const icons = Object.keys(ymaps.option.presetStorage.hash)
-                  .filter(it => it.startsWith('islands') && it.endsWith('Icon'));
-              const select = document.getElementById('icon');
-              const fragment = document.createDocumentFragment();
-              for (const type of icons) {
-                  const el = document.createElement('option');
-                  el.innerText = type;
-                  el.value = type;
-                  if (type === '<?php echo $value->icon ?>') {
-                      console.log(type);
-                      el.selected = true;
-                  }
-                  fragment.appendChild(el);
-              }
-              select.appendChild(fragment);
+          function constructPreset(color, icon) {
+              return `islands#${color}${icon[0].toUpperCase() + icon.slice(1)}CircleIcon`
+          }
 
-              select.addEventListener(
-                  'input',
-                  e => {
-                      const icon = e.target.value;
-                      placemark.options.set('preset', icon);
-                      updateFieldValue({ icon });
+          function extract(preset, isColor) {
+              const sanitized = preset.slice(8, -10);
+              for (var i = sanitized.length - 1; i >= 0; i--) {
+                  if (sanitized[i].toUpperCase() === sanitized[i]) {
+                      return isColor ? sanitized.slice(0, i) : sanitized.slice(i).toLowerCase();
                   }
-              );
+              }
+          }
+
+          function makeTypeSelectable(placemark) {
+              let pictograms = new Set();
+              const hashes = Object.values(ymaps.option.presetStorage.hash);
+              for (let hash of hashes) {
+                  const p = hash.iconPictogram;
+                  if (p && p === p.toLowerCase() && !p.match(/[0-9]+/)) {
+                      pictograms.add(hash.iconPictogram);
+                  }
+              }
+              pictograms = [...pictograms].sort();
+              const colors = ["blue", "red", "darkOrange", "night", "darkBlue", "pink", "gray", "brown", "darkGreen", "violet", "black", "yellow", "green", "orange", "lightBlue", "olive", "grey", "darkorange", "darkgreen", "darkblue", "lightblue"];
+
+              function populateChoices(element, choices, isColor) {
+                const fragment = document.createDocumentFragment();
+                for (const type of choices) {
+                    const el = document.createElement('option');
+                    el.innerText = type;
+                    el.value = type;
+                    if (type === extract('<?php echo $value->icon ?>', isColor)) {
+                        el.selected = true;
+                    }
+                    fragment.appendChild(el);
+                }
+                element.appendChild(fragment);
+              }
+
+              console.log(extract('<?php echo $value->icon ?>', true));
+              console.log(extract('<?php echo $value->icon ?>', false));
+
+              const iconSelect = document.getElementById('icon');
+              const colorSelect = document.getElementById('color');
+
+              populateChoices(iconSelect, pictograms, false);
+              populateChoices(colorSelect, colors, true);
+
+              function setPreset(preset) {
+                 placemark.options.set('preset', preset);
+                 updateFieldValue({ icon: preset });
+              }
+
+             iconSelect.addEventListener('input', e => setPreset(constructPreset(colorSelect.value, e.target.value)));
+             colorSelect.addEventListener('input', e => setPreset(constructPreset(e.target.value, iconSelect.value)));
           }
 
           function init() {
-              let coords = <?php echo json_encode( $value->coords ) ?> ||[55.753994, 37.622093];
+              let coords = <?php echo json_encode( $value->coords ) ?> ||
+              [55.753994, 37.622093];
               const myMap = new ymaps.Map('map', {
                   center: coords,
                   zoom: 9,
@@ -113,7 +150,7 @@ class acfyandex_version extends acfyandex_common {
                           myPlacemark.geometry.setCoordinates(coords);
                           const [name, description] = ['name', 'text'].map(it => firstGeoObject.properties.get(it));
                           myPlacemark.properties
-                              .set({ iconCaption: null, balloonContent: null });
+                              .set({iconCaption: null, balloonContent: null});
 
                           const setByAddress = typeof query === 'string';
 
@@ -125,7 +162,7 @@ class acfyandex_version extends acfyandex_common {
                               ? query
                               : description;
 
-                          updateFieldValue({ address, coords });
+                          updateFieldValue({address, coords});
                           document.getElementById("address").value = address;
                       }).catch(() => myPlacemark.properties.set('iconCaption', 'Ошибка'));
               }
