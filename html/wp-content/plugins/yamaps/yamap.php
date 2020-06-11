@@ -74,7 +74,7 @@ function yamaps_the_content( $content ) {
 }
 
 //Функция добавления метки на карту
-function yaplacemark_func($atts) {
+function yaplacemark_func($atts, $content = '') {
 	$atts = shortcode_atts( array(
 		'coord' => '',
 		'name' => '',
@@ -82,6 +82,7 @@ function yaplacemark_func($atts) {
 		'icon' => 'islands#dotIcon',
 		'balloon' => '',
 	), $atts );
+	$balloon = do_shortcode($content);
 
 	global $yaplacemark_count, $maps_count;
 	$yaplacemark_count++;
@@ -112,7 +113,7 @@ function yaplacemark_func($atts) {
                                 hintContent: "'.$yahint.'",
                                 iconContent: "'.$yacontent.'",
                                 iconCaption: "'.$yahint.'",
-                                balloonContent: "'.$atts['balloon'].'",
+                                balloonContent: "'.$balloon.'",
 
                               
                             }, {';
