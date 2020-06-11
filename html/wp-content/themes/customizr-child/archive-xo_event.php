@@ -9,15 +9,19 @@ function try_set_date($date_string, $fallback) {
 	return new DateTime( $fallback );
 }
 
-add_action('__before_loop', function() {
-	global $wp_query;
-
+function getDates() {
 	$start_date = try_set_date($_GET['from'] ?? null, 'first day of january');
 	$end_date = try_set_date($_GET['to'] ?? null, 'first day of december');
 
 	if ($start_date > $end_date) {
 		$start_date = new DateTime('now');
 	}
+	return [$start_date, $end_date];
+}
+
+add_action('__before_loop', function() {
+	global $wp_query;
+	[$start_date, $end_date] = getDates();
 
 	$custom_query = array(
 		'meta_query' => array(
