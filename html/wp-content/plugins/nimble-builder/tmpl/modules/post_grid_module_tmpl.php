@@ -1,7 +1,7 @@
 <?php
 /* Developers : you can override this template from a theme with a file that has this path : 'nimble_templates/modules/{original-module-template-file-name}.php' */
 namespace Nimble;
-if ( ! defined( 'ABSPATH' ) ) {
+if ( !defined( 'ABSPATH' ) ) {
     exit;
 }
 $model = Nimble_Manager()->model;
@@ -11,10 +11,23 @@ $metas_settings = $value['grid_metas'];
 $thumb_settings = $value['grid_thumb'];
 
 
+// filter for 'get_pagenum_link' and 'paginate_links'
+// for https://github.com/presscustomizr/nimble-builder/issues/672
+// June 2020 updated for https://github.com/presscustomizr/nimble-builder/issues/716
+if ( !function_exists( 'Nimble\sek_filter_pagination_nav_url') ) {
+    function sek_filter_pagination_nav_url( $result ) {
+          $url = add_query_arg(
+            array('go_to' => Nimble_Manager()->model['id'] ),
+            $result
+          );
+          return $url;
+    }
+}
+
 /**
  * The template for displaying the pagination links
  */
-if ( ! function_exists( 'Nimble\sek_render_post_navigation') ) {
+if ( !function_exists( 'Nimble\sek_render_post_navigation') ) {
   function sek_render_post_navigation( $post_collection ) {
     $next_dir          = is_rtl() ? 'right' : 'left';
     $prev_dir          = is_rtl() ? 'left' : 'right';
@@ -23,17 +36,19 @@ if ( ! function_exists( 'Nimble\sek_render_post_navigation') ) {
     $_older_label      = __( 'Older' , 'nimble-builder' );
     $_newer_label      = __( 'Newer' , 'nimble-builder' );
 
+    // filter to add nimble module id ( ex : #__nimble__b4b942df40e5 ) at the end of the url so we focus on grid when navigating pagination
+    add_filter('get_pagenum_link', 'Nimble\sek_filter_pagination_nav_url' );
     /* Generate links */
     $prev_link = get_next_posts_link(
-      '<span class="sek-meta-nav"><span class="sek-meta-nav-title">' . $_older_label . '&nbsp;<i class="fas fa-chevron-' . $prev_dir . '"></i></span></span>', //label
+      '<span class="sek-meta-nav"><span class="sek-meta-nav-title">' . $_older_label . '</span></span>', //label
       $post_collection->max_num_pages //max pages
     );
 
     $next_link  = get_previous_posts_link(
-      '<span class="sek-meta-nav"><span class="sek-meta-nav-title"><i class="fas fa-chevron-' . $next_dir . '"></i>&nbsp;' . $_newer_label . '</span></span>', //label
+      '<span class="sek-meta-nav"><span class="sek-meta-nav-title">' . $_newer_label . '</span></span>', //label
         $post_collection->max_num_pages //max pages
     );
-
+    remove_filter('get_pagenum_link', 'Nimble\sek_filter_pagination_nav_url' );
 
     /* If no links are present do not display this */
     if ( null != $prev_link || null != $next_link ) :
@@ -52,13 +67,24 @@ if ( ! function_exists( 'Nimble\sek_render_post_navigation') ) {
           <li class="sek-pagination sek-col-base sek-col-33">
             <ul class="sek-pag-list">
             <?php
+              // April 2020 : fixes pagination not working on a static page used as front page
+              // see https://github.com/presscustomizr/nimble-builder/issues/664
+              // https://developer.wordpress.org/reference/classes/wp_query/#pagination-parameters
+              $pagination_query_var = Nimble_Manager()->is_viewing_static_front_page ? 'page' :'paged';
+              $paged = get_query_var($pagination_query_var);
+              $paged = $paged ? $paged : 1;
+
+              // filter to add nimble module id ( ex : #__nimble__b4b942df40e5 ) at the end of the url so we focus on grid when navigating pagination
+              add_filter('paginate_links', 'Nimble\sek_filter_pagination_nav_url' );
               $_paginate_links = paginate_links( array(
-                'prev_next' => false,
-                'mid_size'  => 1,
-                'type'      => 'array',
-                'current'    => max( 1, get_query_var('paged') ),
-                'total'      => $post_collection->max_num_pages
+                  'prev_next' => false,
+                  'mid_size'  => 1,
+                  'type'      => 'array',
+                  'current'    => max( 1, $paged ),
+                  'total'      => $post_collection->max_num_pages
               ));
+              remove_filter('paginate_links', 'Nimble\sek_filter_pagination_nav_url' );
+
               if ( is_array( $_paginate_links ) ) {
                 foreach ( $_paginate_links as $_page ) {
                   echo "<li class='sek-paginat-item'>$_page</li>";
@@ -82,8 +108,15 @@ if ( ! function_exists( 'Nimble\sek_render_post_navigation') ) {
 
 
 
-if ( ! function_exists( 'Nimble\sek_render_post') ) {
+if ( !function_exists( 'Nimble\sek_render_post') ) {
   function sek_render_post( $main_settings, $metas_settings, $thumb_settings ) {
+    global $post;
+
+    if ( is_object($post) && isset($post->ID) ) {
+        $post_id = $post->ID;
+    } else {
+        $post_id = $post;
+    }
     // thumb, title, excerpt visibility
     foreach ( ['thumb'] as $element ) {
         ${'show_' . $element} = sek_booleanize_checkbox_val( $thumb_settings["show_{$element}"] );
@@ -111,13 +144,17 @@ if ( ! function_exists( 'Nimble\sek_render_post') ) {
               <?php
                   if( $has_post_thumbnail ) {
                       $img_html = wp_get_attachment_image( get_post_thumbnail_id(), empty( $thumb_settings['img_size'] ) ? 'medium' : $thumb_settings['img_size']);
-                      $img_html = apply_filters( 'nimble_parse_for_smart_load', $img_html );
+                      if ( !skp_is_customizing() ) {
+                        // april 2020 : when customizing, smart load randomly breaks when refreshing the grids
+                        // so let's apply smart load only on front for now
+                        $img_html = apply_filters( 'nimble_parse_for_smart_load', $img_html );
+                      }
                       if ( !skp_is_customizing() && false !== strpos($img_html, 'data-sek-src="http') ) {
                           $img_html = $img_html.Nimble_Manager()->css_loader_html;
                       }
                       echo $img_html;
                   } else if ( $use_post_thumb_placeholder ) {
-                      printf( '<img alt="default img" data-sek-smartload="false" src="%1$s"/>', NIMBLE_BASE_URL . '/assets/img/default-img.png'  );
+                      printf( '<img alt="default img" data-skip-lazyload="true" src="%1$s"/>', NIMBLE_BASE_URL . '/assets/img/default-img.png'  );
                   }
               ?>
             </a>
@@ -130,7 +167,7 @@ if ( ! function_exists( 'Nimble\sek_render_post') ) {
             <?php endif; ?>
             <?php if ( $show_title ) : ?>
               <h2 class="sek-pg-title">
-                <a href="<?php the_permalink(); ?>" rel="bookmark"><?php the_title(); ?></a>
+                <a href="<?php the_permalink(); ?>" rel="bookmark"><?php echo get_the_title($post_id); ?></a>
               </h2><!--/.pg-title-->
             <?php endif; ?>
             <?php if ( $show_author || $show_date || $show_comments ) : ?>
@@ -167,24 +204,22 @@ if ( ! function_exists( 'Nimble\sek_render_post') ) {
 
 
 
-// Solves the problem of setting both the maximum number of posts and the posts_per_page in a custom WP_Query
-// Filter is added and removed before and after the query call
-if ( ! function_exists( 'Nimble\sek_filter_found_posts') ) {
-  function sek_filter_found_posts() {
-    $model = Nimble_Manager()->model;
-    $value = array_key_exists( 'value', $model ) ? $model['value'] : array();
-    $main_settings = $value['grid_main'];
-    $post_nb = (int)$main_settings['post_number'];
-    $post_nb = $post_nb < 0 ? 0 : $post_nb;
-    $posts_per_page = (int)$main_settings['posts_per_page'];
-    $posts_per_page = $posts_per_page <= 0 ? 1 : $posts_per_page;
-    return $post_nb;
-  }
-}
+// // Solves the problem of setting both the maximum number of posts and the posts_per_page in a custom WP_Query
+// // Filter is added and removed before and after the query call
+// if ( !function_exists( 'Nimble\sek_filter_found_posts') ) {
+//   function sek_filter_found_posts() {
+//     $model = Nimble_Manager()->model;
+//     $value = array_key_exists( 'value', $model ) ? $model['value'] : array();
+//     $main_settings = $value['grid_main'];
+//     $post_nb = (int)$main_settings['post_number'];
+//     $post_nb = $post_nb < 0 ? 0 : $post_nb;
+//     return $post_nb;
+//   }
+// }
 
 
 // filters @hook 'excerpt_length'
-if ( ! function_exists( 'Nimble\sek_pg_get_excerpt_length') ) {
+if ( !function_exists( 'Nimble\sek_pg_get_excerpt_length') ) {
   function sek_pg_get_excerpt_length( $original_length ) {
     $model = Nimble_Manager()->model;
     $value = array_key_exists( 'value', $model ) ? $model['value'] : array();
@@ -255,19 +290,29 @@ $query_params = $default_query_params = [
   'category_name'          => $category_names,
   'category__in'           => $categories_in,
   'order'                  => $order,
-  'orderby'                => $orderby
+  'orderby'                => $orderby,
+  // may 2020 : querying ids is enough and much more performant on large queries
+  // @see : https://pluginrepublic.com/how-to-handle-large-queries-in-wordpress/
+  'fields'                 => 'ids'
 ];
 
 
 $post_collection = null;
-
+// may 2020 => is_front_page() was wrong to check if home was a static front page.
+// fixes https://github.com/presscustomizr/nimble-builder/issues/664
+Nimble_Manager()->is_viewing_static_front_page = is_front_page() && 'page' == get_option( 'show_on_front' );
 if ( true === sek_booleanize_checkbox_val($main_settings['display_pagination']) ) {
   $posts_per_page = (int)$main_settings['posts_per_page'];
   $posts_per_page = $posts_per_page <= 0 ? 1 : $posts_per_page;
-  $paged = (get_query_var('paged')) ? get_query_var('paged') : 1;
+  // April 2020 : fixes pagination not working on a static page used as front page
+  // see https://github.com/presscustomizr/nimble-builder/issues/664
+  // https://developer.wordpress.org/reference/classes/wp_query/#pagination-parameters
+  $pagination_query_var = Nimble_Manager()->is_viewing_static_front_page ? 'page' :'paged';
+  $paged = get_query_var($pagination_query_var);
+  $paged = $paged ? $paged : 1;
   $query_params = wp_parse_args( [
     'paged' => $paged,
-    'posts_per_page' => $posts_per_page >= $post_nb ? $post_nb : $posts_per_page,
+    'posts_per_page' => $posts_per_page,
   ], $default_query_params );
 }
 
@@ -277,10 +322,10 @@ if ( $post_nb > 0 ) {
   $query_params = apply_filters( 'nimble_post_grid_module_query_params', $query_params , Nimble_Manager()->model );
 
   if ( is_array( $query_params ) ) {
-    add_filter( 'found_posts', '\Nimble\sek_filter_found_posts', 10, 2 );
+    //add_filter( 'found_posts', '\Nimble\sek_filter_found_posts', 10, 2 );
     // Query featured entries
     $post_collection = new \WP_Query($query_params);
-    remove_filter( 'found_posts', '\Nimble\sek_filter_found_posts', 10, 2 );
+    //remove_filter( 'found_posts', '\Nimble\sek_filter_found_posts', 10, 2 );
   } else {
     sek_error_log('post_grid_module_tmpl => query params is invalid');
   }
@@ -291,7 +336,7 @@ if ( $post_nb > 0 ) {
 
 // Copy of WP_Query::have_post(), without do_action_ref_array( 'loop_start', array( &$this ) );
 // implemented to fix https://github.com/presscustomizr/nimble-builder/issues/467
-if ( ! function_exists( 'Nimble\sek_pg_the_nimble_have_post') ) {
+if ( !function_exists( 'Nimble\sek_pg_the_nimble_have_post') ) {
   function sek_pg_the_nimble_have_post( $query ) {
     if ( $query->current_post + 1 < $query->post_count ) {
       return true;
@@ -325,7 +370,7 @@ if ( ! function_exists( 'Nimble\sek_pg_the_nimble_have_post') ) {
 
 // Copy of WP_Query::the_post(), without do_action_ref_array( 'loop_start', array( &$this ) );
 // implemented to fix https://github.com/presscustomizr/nimble-builder/issues/467
-if ( ! function_exists( 'Nimble\sek_pg_the_nimble_post') ) {
+if ( !function_exists( 'Nimble\sek_pg_the_nimble_post') ) {
   function sek_pg_the_nimble_post( $query ) {
     global $post;
     $query->in_the_loop = true;
@@ -382,7 +427,7 @@ if ( is_object( $post_collection ) && $post_collection->have_posts() ) {
   $grid_items_classes = implode(' ', $grid_items_classes );
 
   ?>
-  <div class="sek-post-grid-wrapper <?php echo $grid_wrapper_classes; ?>">
+  <div class="sek-post-grid-wrapper <?php echo $grid_wrapper_classes; ?>" id="<?php echo $model['id']; ?>">
     <div class="sek-grid-items <?php echo $grid_items_classes; ?>">
       <?php
         // $post_collection->have_posts() fires 'loop_end', which we don't want

@@ -1,6 +1,6 @@
 <?php
 namespace Nimble;
-if ( ! defined( 'ABSPATH' ) ) {
+if ( !defined( 'ABSPATH' ) ) {
     exit;
 }
 
@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // implemented for https://github.com/presscustomizr/nimble-builder/issues/418
 add_action('customize_save_after', '\Nimble\sek_update_most_used_gfonts');
 function sek_update_most_used_gfonts( $manager ) {
+    if ( !sek_current_user_can_access_nb_ui() )
+      return;
     $skope_id = skp_get_skope_id();
     $all_gfonts = sek_get_all_gfonts( $skope_id );
     if ( is_array($all_gfonts) && !empty($all_gfonts) ) {
@@ -19,6 +21,8 @@ function sek_update_most_used_gfonts( $manager ) {
 
 add_action('customize_save_after', '\Nimble\sek_maybe_write_global_stylesheet');
 function sek_maybe_write_global_stylesheet( $manager ) {
+    if ( !sek_current_user_can_access_nb_ui() )
+      return;
     // Try to write the CSS
     new Sek_Dyn_CSS_Handler( array(
         'id'             => NIMBLE_GLOBAL_SKOPE_ID,
@@ -55,7 +59,7 @@ function sek_get_all_gfonts() {
         'lazy_load_term_meta'    => false,
     );
     $query = new \WP_Query( $sek_post_query_vars );
-    if ( ! is_array( $query->posts ) || empty( $query->posts ) )
+    if ( !is_array( $query->posts ) || empty( $query->posts ) )
       return;
 
     foreach ($query->posts as $post_object ) {
@@ -80,6 +84,8 @@ function sek_get_all_gfonts() {
 // ENQUEUE CUSTOMIZER JAVASCRIPT + PRINT LOCALIZED DATA
 add_action ( 'customize_controls_enqueue_scripts', '\Nimble\sek_enqueue_controls_js_css', 20 );
 function sek_enqueue_controls_js_css() {
+    if ( !sek_current_user_can_access_nb_ui() )
+      return;
     wp_enqueue_style(
         'sek-control',
         sprintf(
@@ -92,28 +98,30 @@ function sek_enqueue_controls_js_css() {
         'all'
     );
 
-
-    wp_enqueue_script(
-        'czr-sektions',
-        //dev / debug mode mode?
-        sprintf(
-            '%1$s/assets/czr/sek/js/%2$s' ,
-            NIMBLE_BASE_URL,
-            sek_is_dev_mode() ? 'ccat-sek-control.js' : 'ccat-sek-control.min.js'
-        ),
-        array( 'czr-skope-base' , 'jquery', 'underscore' ),
-        NIMBLE_ASSETS_VERSION,
-        $in_footer = true
-    );
+    // June 2020 : commented for https://github.com/presscustomizr/nimble-builder/issues/708
+    // now injected on api "ready"
+    // wp_enqueue_script(
+    //     'czr-sektions',
+    //     //dev / debug mode mode?
+    //     sprintf(
+    //         '%1$s/assets/czr/sek/js/%2$s' ,
+    //         NIMBLE_BASE_URL,
+    //         sek_is_dev_mode() ? 'ccat-sek-control.js' : 'ccat-sek-control.min.js'
+    //     ),
+    //     array( 'czr-skope-base' , 'jquery', 'underscore' ),
+    //     NIMBLE_ASSETS_VERSION,
+    //     $in_footer = true
+    // );
 
 
     wp_localize_script(
-        'czr-sektions',
+        'customize-controls',//czr-sektions',
         'sektionsLocalizedData',
         apply_filters( 'nimble-sek-localized-customizer-control-params',
             array(
                 'nimbleVersion' => NIMBLE_VERSION,
                 'isDevMode' => sek_is_dev_mode(),
+                'isDebugMode' => sek_is_debug_mode(),
                 'baseUrl' => NIMBLE_BASE_URL,
                 //ajaxURL is not mandatory because is normally available in the customizer window.ajaxurl
                 'ajaxUrl' => admin_url( 'admin-ajax.php' ),
@@ -135,7 +143,7 @@ function sek_enqueue_controls_js_css() {
                 'settingIdForGlobalSections' => sek_get_seks_setting_id( NIMBLE_GLOBAL_SKOPE_ID ),
                 'globalSkopeId' => NIMBLE_GLOBAL_SKOPE_ID,
 
-                //'userSavedSektions' => get_option(NIMBLE_OPT_NAME_FOR_SAVED_SEKTIONS),
+                //'userSavedSektions' => sek_get_all_saved_sections(),
 
                 //'presetSections' => sek_get_preset_sections_api_data(), <= fetched on demand in ajax
 
@@ -157,7 +165,6 @@ function sek_enqueue_controls_js_css() {
                     '.sek-content-preset_section-drop-zone'//between sections
                 ]),
 
-                'isSavedSectionEnabled' => defined( 'NIMBLE_SAVED_SECTIONS_ENABLED' ) ? NIMBLE_SAVED_SECTIONS_ENABLED : true,
                 'areBetaFeaturesEnabled' => sek_are_beta_features_enabled(),
 
                 'registeredWidgetZones' => array_merge( array( '_none_' => __('Select a widget area', 'nimble-builder') ), sek_get_registered_widget_areas() ),
@@ -198,7 +205,9 @@ function sek_enqueue_controls_js_css() {
                 //     '[cfont]Comic Sans MS,Comic Sans MS,cursive',
                 //     '[gfont]Covered+By+Your+Grace:regular'
                 // ),
-                'alreadyUsedFonts' => get_option( NIMBLE_OPT_NAME_FOR_MOST_USED_FONTS )
+                'alreadyUsedFonts' => get_option( NIMBLE_OPT_NAME_FOR_MOST_USED_FONTS ),
+                'isTemplateGalleryEnabled' => defined( 'NIMBLE_TEMPLATE_GALLERY_ENABLED' ) && NIMBLE_TEMPLATE_GALLERY_ENABLED, //<= APRIL 2020 : for https://github.com/presscustomizr/nimble-builder/issues/651
+                'isTemplateSaveEnabled' => defined( 'NIMBLE_TEMPLATE_SAVE_ENABLED' ) && NIMBLE_TEMPLATE_SAVE_ENABLED //<= APRIL 2020 : for https://github.com/presscustomizr/nimble-builder/issues/655
             )
         )
     );//wp_localize_script()
@@ -356,7 +365,7 @@ function nimble_get_code_editor_settings( $args ) {
             ),
         ) );
 
-        if ( ! current_user_can( 'unfiltered_html' ) ) {
+        if ( !current_user_can( 'unfiltered_html' ) ) {
             $settings['htmlhint']['kses'] = wp_kses_allowed_html( 'post' );
         }
     } elseif ( 'text/x-gfm' === $type ) {
@@ -433,7 +442,7 @@ function nimble_get_code_editor_settings( $args ) {
         $settings['codemirror']['mode'] = $type;
     }
 
-    if ( ! empty( $settings['codemirror']['lint'] ) ) {
+    if ( !empty( $settings['codemirror']['lint'] ) ) {
         $settings['codemirror']['gutters'][] = 'CodeMirror-lint-markers';
     }
 
@@ -621,6 +630,7 @@ function nimble_add_i18n_localized_control_params( $params ) {
             'Export failed' => __('Export failed', 'nimble-builder'),
             'Nothing to export.' => __('Nimble Builder : you have nothing to export. Start adding sections to this page!', 'nimble-builder'),
             'Import failed' => __('Import failed', 'nimble-builder'),
+            'Import exceeds server response time, try to uncheck "import images" option.' => __('Import exceeds server response time, try to uncheck "import images" option.', 'nimble-builder'),
             'The current page has no available locations to import Nimble Builder sections.' => __('The current page has no available locations to import Nimble Builder sections.', 'nimble-builder'),
             'Missing file' => __('Missing file', 'nimble-builder'),
             'File successfully imported' => __('File successfully imported', 'nimble-builder'),
@@ -633,9 +643,20 @@ function nimble_add_i18n_localized_control_params( $params ) {
             'This is a single-column section with a width of 100%. You can act on the internal width of the parent section, or adjust padding and margin.' => __('This is a single-column section with a width of 100%. You can act on the internal width of the parent section, or adjust padding and margin.', 'nimble-builder'),
 
             // Accordion module
-            'Accordion title' => __('Accordion title', 'nimble-builder')
-            //'Remove this element' => __('Remove this element', 'text_dom'),
-            //'Remove this element' => __('Remove this element', 'text_dom'),
+            'Accordion title' => __('Accordion title', 'nimble-builder'),
+
+            // Template gallery and save
+            'Last modified' => __('Last modified', 'nimble-builder'),
+            'Use this template' => __('Use this template', 'nimble-builder'),
+            'Remove this template' => __('Remove this template', 'nimble-builder'),
+            'A title is required' => __('A title is required', 'nimble-builder'),
+            'Template saved' => __('Template saved', 'nimble-builder'),
+            'Template removed' => __('Template removed', 'nimble-builder'),
+            'Error when processing templates' => __('Error when processing templates', 'nimble-builder'),
+            'Last modified' => __('Last modified', 'nimble-builder'),
+
+            // Section Save
+            'My sections' => __('My sections', 'nimble-builder')
             //'Remove this element' => __('Remove this element', 'text_dom'),
             //'Remove this element' => __('Remove this element', 'text_dom'),
             //'Remove this element' => __('Remove this element', 'text_dom'),
@@ -655,12 +676,12 @@ function nimble_add_i18n_localized_control_params( $params ) {
 // ADD SEKTION VALUES TO EXPORTED DATA IN THE CUSTOMIZER PREVIEW
 add_filter( 'skp_json_export_ready_skopes', '\Nimble\add_sektion_values_to_skope_export' );
 function add_sektion_values_to_skope_export( $skopes ) {
-    if ( ! is_array( $skopes ) ) {
+    if ( !is_array( $skopes ) ) {
         sek_error_log( __FUNCTION__ . ' error => skp_json_export_ready_skopes filter => the filtered skopes must be an array.' );
     }
     $new_skopes = array();
     foreach ( $skopes as $skp_data ) {
-        if ( ! is_array( $skp_data ) || empty( $skp_data['skope'] ) ) {
+        if ( !is_array( $skp_data ) || empty( $skp_data['skope'] ) ) {
             sek_error_log( __FUNCTION__ . ' error => missing skope informations' );
             continue;
         }
@@ -668,7 +689,7 @@ function add_sektion_values_to_skope_export( $skopes ) {
             $new_skopes[] = $skp_data;
             continue;
         }
-        if ( ! is_array( $skp_data ) ) {
+        if ( !is_array( $skp_data ) ) {
             error_log( 'skp_json_export_ready_skopes filter => the skope data must be an array.' );
             continue;
         }
@@ -697,7 +718,55 @@ function add_sektion_values_to_skope_export( $skopes ) {
     return $new_skopes;
 }
 
+// June 2020 : added for https://github.com/presscustomizr/nimble-builder/issues/708
+// print a script in the head of the customizer
+// inject control js script on api "ready" event
+add_action( 'customize_controls_print_footer_scripts', '\Nimble\sek_print_nimble_czr_control_js', 100 );
+//add_action( 'customize_controls_print_scripts', '\Nimble\sek_print_nimble_czr_control_js', 100 );
+function sek_print_nimble_czr_control_js() {
+    $script_url = sprintf(
+        '%1$s/assets/czr/sek/js/%2$s?ver=%3$s' ,
+        NIMBLE_BASE_URL,
+        sek_is_dev_mode() ? 'ccat-sek-control.js' : 'ccat-sek-control.min.js',
+        NIMBLE_ASSETS_VERSION
+    );
+    ?>
+    <script id="nb-schedule-control-js-load">
+      (function() {
+        var _loadScript = function() {
+          wp.customize.bind( 'ready', function() {
+              wp.customize.apiIsReady = true; //<= used in CZRSeksPrototype::initialize()
+              var _script = document.createElement("script"),
+                  customizePreviewTag = document.getElementById('customize-preview');
+              _script.setAttribute('src', '<?php echo $script_url; ?>'  );
+              _script.setAttribute('id', 'nb-control-js' );
+              //_script.setAttribute('defer', 'defer');
 
+              // Insert after #customize-preview
+              customizePreviewTag.parentNode.insertBefore(_script, customizePreviewTag.nextSibling);
+          });
+        },
+        // recursively try to load jquery every 100ms during 5s ( max 50 times )
+        _loadWhenWpCustomizeLoaded = function( attempts ) {
+            attempts = attempts || 0;
+            if ( wp && wp.customize ) {
+                _loadScript();
+            } else if ( attempts < 50 ) {
+              setTimeout( function() {
+                  attempts++;
+                  _loadWhenWpCustomizeLoaded( attempts );
+              }, 100 );
+            } else {
+              if ( window.console ) {
+                  console.log('Nimble Builder => Error missing wp or wp.customize in global scope' );
+              }
+            }
+        };
+        _loadWhenWpCustomizeLoaded();
+      })();
+    </script>
+    <?php
+};
 
 add_action( 'customize_controls_print_footer_scripts', '\Nimble\sek_print_nimble_customizer_tmpl' );
 function sek_print_nimble_customizer_tmpl() {
@@ -715,19 +784,40 @@ function sek_print_nimble_customizer_tmpl() {
             </button>
           </div>
           <div class="sek-do-undo">
-            <button type="button" class="icon undo" title="<?php _e('Undo', 'nimble-builder'); ?>" data-nimble-history="undo" data-nimble-state="disabled">
-              <span class="screen-reader-text"><?php _e('Undo', 'nimble-builder'); ?></span>
-            </button>
-            <button type="button" class="icon do" title="<?php _e('Redo', 'nimble-builder'); ?>" data-nimble-history="redo" data-nimble-state="disabled">
-              <span class="screen-reader-text"><?php _e('Redo', 'nimble-builder'); ?></span>
-            </button>
+            <?php if ( is_rtl() ) : ?>
+                <button type="button" class="icon do" title="<?php _e('Undo', 'nimble-builder'); ?>" data-nimble-history="undo" data-nimble-state="disabled">
+                  <span class="screen-reader-text"><?php _e('Undo', 'nimble-builder'); ?></span>
+                </button>
+                <button type="button" class="icon undo" title="<?php _e('Redo', 'nimble-builder'); ?>" data-nimble-history="redo" data-nimble-state="disabled">
+                  <span class="screen-reader-text"><?php _e('Redo', 'nimble-builder'); ?></span>
+                </button>
+            <?php else : ?>
+                <button type="button" class="icon undo" title="<?php _e('Undo', 'nimble-builder'); ?>" data-nimble-history="undo" data-nimble-state="disabled">
+                  <span class="screen-reader-text"><?php _e('Undo', 'nimble-builder'); ?></span>
+                </button>
+                <button type="button" class="icon do" title="<?php _e('Redo', 'nimble-builder'); ?>" data-nimble-history="redo" data-nimble-state="disabled">
+                  <span class="screen-reader-text"><?php _e('Redo', 'nimble-builder'); ?></span>
+                </button>
+            <?php endif; ?>
           </div>
           <div class="sek-settings">
             <button type="button" class="fas fa-sliders-h" title="<?php _e('Global settings', 'nimble-builder'); ?>" data-nimble-state="enabled">
               <span class="screen-reader-text"><?php _e('Global settings', 'nimble-builder'); ?></span>
             </button>
           </div>
-          <div class="sek-notifications"></div>
+          <?php // April 2020 => added for https://github.com/presscustomizr/nimble-builder/issues/655 ?>
+          <?php if ( defined( 'NIMBLE_TEMPLATE_SAVE_ENABLED' ) && NIMBLE_TEMPLATE_SAVE_ENABLED ) : ?>
+          <div class="sek-tmpl-saving">
+            <button type="button" class="far fa-save" title="<?php _e('Save as a template', 'nimble-builder'); ?>" data-nimble-state="enabled">
+              <span class="screen-reader-text"><?php _e('Save as a template', 'nimble-builder'); ?></span>
+            </button>
+          </div>
+          <?php endif; ?>
+          <div class="sek-notifications">
+            <?php if ( sek_is_debug_mode() ) : ?>
+                <span class="debug-mode-notif"><span class="fas fa-info-circle">&nbsp;<?php _e('Debug mode active ( WP admin > Settings > Nimble Builder options )', 'nimble-builder'); ?></span></span>
+            <?php endif; ?>
+          </div>
           <div class="sek-nimble-doc" data-doc-href="https://docs.presscustomizr.com/collection/334-nimble-builder/?utm_source=usersite&utm_medium=link&utm_campaign=nimble-customizer-topbar">
             <div class="sek-nimble-icon"><img src="<?php echo NIMBLE_BASE_URL.'/assets/img/nimble/nimble_icon.svg?ver='.NIMBLE_VERSION; ?>" alt="<?php _e('Nimble Builder','nimble-builder'); ?>" title="<?php _e('Nimble online documentation', 'nimble-builder'); ?>"/></div>
             <span class="sek-pointer" title="<?php _e('Nimble online documentation', 'nimble-builder'); ?>"><?php _e('Nimble online documentation', 'nimble-builder'); ?></span>
@@ -738,9 +828,29 @@ function sek_print_nimble_customizer_tmpl() {
       </div>
     </script>
 
-    <script type="text/html" id="tmpl-nimble-top-save-ui">
-      <div id="nimble-top-save-ui" class="czr-preview-notification">
-          <input id="sek-saved-section-id" type="hidden" value="">
+
+
+<?php // SECTION SAVING
+    // June 2020, for https://github.com/presscustomizr/nimble-builder/issues/520
+    ?>
+    <script type="text/html" id="tmpl-nimble-top-section-save-ui">
+      <div id="nimble-top-section-save-ui" class="czr-preview-notification" data-sek-section-dialog-mode="hidden">
+        <div class="nb-section-save-inner">
+          <div class="sek-save-section-mode-switcher">
+            <div class="sek-ui-button-group" role="group">
+              <button aria-pressed="false" data-section-mode-switcher="save" class="sek-ui-button" type="button" title="<?php _e('Save as new section', 'nimble-builder'); ?>">
+                  <i class="far fa-save"></i>&nbsp;<?php _e('Save as new section', 'nimble-builder'); ?>
+              </button>
+              <button aria-pressed="false" data-section-mode-switcher="update" class="sek-ui-button" type="button" title="<?php _e('Update a section', 'nimble-builder'); ?>">
+                  <i class="far fa-edit"></i>&nbsp;<?php _e('Update a section', 'nimble-builder'); ?>
+              </button>
+              <button aria-pressed="false" data-section-mode-switcher="remove" class="sek-ui-button" type="button" title="<?php _e('Remove section(s)', 'nimble-builder'); ?>">
+                  <i class="fas fa-trash"></i>&nbsp;<?php _e('Remove section(s)', 'nimble-builder'); ?>
+              </button>
+            </div>
+          </div>
+          <?php // the select input is printed with a default 'none' option, other options will be populated dynamically with ajax fetching results ?>
+          <select class="sek-saved-section-picker"><option selected="selected" value="none"><?php _e('Select a section', 'nimble-builder'); ?></option></select>
           <div class="sek-section-title">
               <label for="sek-saved-section-title" class="customize-control-title"><?php _e('Section title', 'nimble-builder'); ?></label>
               <input id="sek-saved-section-title" type="text" value="">
@@ -749,17 +859,118 @@ function sek_print_nimble_customizer_tmpl() {
               <label for="sek-saved-section-description" class="customize-control-title"><?php _e('Section description', 'nimble-builder'); ?></label>
               <textarea id="sek-saved-section-description" type="text" value=""></textarea>
           </div>
-          <div class="sek-section-save">
-              <button class="button sek-do-save-section far fa-save" type="button" title="<?php _e('Save', 'nimble-builder'); ?>">
-                <?php _e('Save', 'nimble-builder'); ?><span class="screen-reader-text"><?php _e('Save', 'nimble-builder'); ?></span>
+          <div class="sek-save-section-action">
+            <div class="sek-ui-button-group" role="group">
+              <button class="sek-ui-button sek-do-save-section" type="button" title="<?php _e('Save section', 'nimble-builder'); ?>">
+                <i class="far fa-save"></i>&nbsp;<?php _e('Save section', 'nimble-builder'); ?><span class="spinner"></span>
               </button>
+              <button class="sek-ui-button sek-do-update-section" type="button" title="<?php _e('Update section', 'nimble-builder'); ?>">
+                <i class="far fa-save"></i>&nbsp;<?php _e('Update section', 'nimble-builder'); ?><span class="spinner"></span>
+              </button>
+              <button class="sek-ui-button sek-open-remove-confirmation" type="button" title="<?php _e('Remove section', 'nimble-builder'); ?>">
+                <i class="fas fa-trash"></i>&nbsp;<?php _e('Remove section', 'nimble-builder'); ?><span class="spinner"></span>
+              </button>
+              <button class="sek-ui-button sek-close-dialog" type="button" title="<?php _e('Close', 'nimble-builder'); ?>">
+                  <i class="far fa-times-circle"></i>&nbsp;<?php _e('Close', 'nimble-builder'); ?>
+              </button>
+            </div>
           </div>
-          <button class="button sek-cancel-save far fa-times-circle" type="button" title="<?php _e('Cancel', 'nimble-builder'); ?>">
-              <?php _e('Cancel', 'nimble-builder'); ?><span class="screen-reader-text"><?php _e('Cancel', 'nimble-builder'); ?></span>
-          </button>
+          <div class="sek-section-remove-dialog">
+            <p><?php _e('Removing a section cannot be undone. Are you sure you want to continue?', 'nimble-builder'); ?>
+            <div class="sek-ui-button-group" role="group">
+              <button class="sek-ui-button sek-do-remove-section" type="button" title="<?php _e('Remove section', 'nimble-builder'); ?>">
+                <?php _e('Remove section', 'nimble-builder'); ?><span class="spinner"></span>
+              </button>
+              <button class="sek-ui-button sek-cancel-remove-section" type="button" title="<?php _e('Cancel', 'nimble-builder'); ?>">
+                <?php _e('Cancel', 'nimble-builder'); ?>
+              </button>
+            </div>
+          </div>
+        </div><?php //nb-section-save-inner ?>
       </div>
     </script>
 
+
+
+    <?php // TEMPLATE SAVING
+    // April 2020, for https://github.com/presscustomizr/nimble-builder/issues/655
+    ?>
+    <script type="text/html" id="tmpl-nimble-top-tmpl-save-ui">
+      <div id="nimble-top-tmpl-save-ui" class="czr-preview-notification" data-sek-tmpl-dialog-mode="hidden">
+        <div class="nb-tmpl-save-inner">
+          <div class="sek-save-tmpl-mode-switcher">
+            <div class="sek-ui-button-group" role="group">
+              <button aria-pressed="false" data-tmpl-mode-switcher="save" class="sek-ui-button" type="button" title="<?php _e('Save as new template', 'nimble-builder'); ?>">
+                  <i class="far fa-save"></i>&nbsp;<?php _e('Save as new template', 'nimble-builder'); ?>
+              </button>
+              <button aria-pressed="false" data-tmpl-mode-switcher="update" class="sek-ui-button" type="button" title="<?php _e('Update a template', 'nimble-builder'); ?>">
+                  <i class="far fa-edit"></i>&nbsp;<?php _e('Update a template', 'nimble-builder'); ?>
+              </button>
+              <button aria-pressed="false" data-tmpl-mode-switcher="remove" class="sek-ui-button" type="button" title="<?php _e('Remove template(s)', 'nimble-builder'); ?>">
+                  <i class="fas fa-trash"></i>&nbsp;<?php _e('Remove template(s)', 'nimble-builder'); ?>
+              </button>
+            </div>
+          </div>
+          <?php // the select input is printed with a default 'none' option, other options will be populated dynamically with ajax fetching results ?>
+          <select class="sek-saved-tmpl-picker"><option selected="selected" value="none"><?php _e('Select a template', 'nimble-builder'); ?></option></select>
+          <div class="sek-tmpl-title">
+              <label for="sek-saved-tmpl-title" class="customize-control-title"><?php _e('Template title', 'nimble-builder'); ?></label>
+              <input id="sek-saved-tmpl-title" type="text" value="">
+          </div>
+          <div class="sek-tmpl-description">
+              <label for="sek-saved-tmpl-description" class="customize-control-title"><?php _e('Template description', 'nimble-builder'); ?></label>
+              <textarea id="sek-saved-tmpl-description" type="text" value=""></textarea>
+          </div>
+          <div class="sek-save-tmpl-action">
+            <div class="sek-ui-button-group" role="group">
+              <button class="sek-ui-button sek-do-save-tmpl" type="button" title="<?php _e('Save template', 'nimble-builder'); ?>">
+                <i class="far fa-save"></i>&nbsp;<?php _e('Save template', 'nimble-builder'); ?><span class="spinner"></span>
+              </button>
+              <button class="sek-ui-button sek-do-update-tmpl" type="button" title="<?php _e('Update template', 'nimble-builder'); ?>">
+                <i class="far fa-save"></i>&nbsp;<?php _e('Update template', 'nimble-builder'); ?><span class="spinner"></span>
+              </button>
+              <button class="sek-ui-button sek-open-remove-confirmation" type="button" title="<?php _e('Remove template', 'nimble-builder'); ?>">
+                <i class="fas fa-trash"></i>&nbsp;<?php _e('Remove template', 'nimble-builder'); ?><span class="spinner"></span>
+              </button>
+              <button class="sek-ui-button sek-close-dialog" type="button" title="<?php _e('Close', 'nimble-builder'); ?>">
+                  <i class="far fa-times-circle"></i>&nbsp;<?php _e('Close', 'nimble-builder'); ?>
+              </button>
+            </div>
+          </div>
+          <div class="sek-tmpl-remove-dialog">
+            <p><?php _e('Removing a template cannot be undone. Are you sure you want to continue?', 'nimble-builder'); ?>
+            <div class="sek-ui-button-group" role="group">
+              <button class="sek-ui-button sek-do-remove-tmpl" type="button" title="<?php _e('Remove template', 'nimble-builder'); ?>">
+                <?php _e('Remove template', 'nimble-builder'); ?><span class="spinner"></span>
+              </button>
+              <button class="sek-ui-button sek-cancel-remove-tmpl" type="button" title="<?php _e('Cancel', 'nimble-builder'); ?>">
+                <?php _e('Cancel', 'nimble-builder'); ?>
+              </button>
+            </div>
+          </div>
+        </div><?php //nb-tmpl-save-inner ?>
+      </div>
+    </script>
+
+
+    <?php // TEMPLATE GALLERY ?>
+    <script type="text/html" id="tmpl-nimble-top-tmpl-gallery">
+      <div id="nimble-tmpl-gallery" class="czr-preview-notification" data-sek-tmpl-dialog-mode="hidden">
+        <div class="czr-css-loader czr-mr-loader" style="display:block"><div></div><div></div><div></div></div>
+        <div id="sek-gal-top-bar">
+          <input type="text" class="sek-filter-tmpl" placeholder="<?php _e('Filter templates', 'nimble-builder'); ?>">
+          <div class="sek-ui-button-group" role="group">
+            <button class="sek-ui-button sek-close-dialog" type="button" title="<?php _e('Close', 'nimble-builder'); ?>">
+                <i class="far fa-times-circle"></i>&nbsp;<?php _e('Close', 'nimble-builder'); ?>
+            </button>
+          </div>
+          <div class="sek-tmpl-gallery-inner"></div>
+        </div>
+      </div>
+    </script>
+
+
+    <?php // LEVEL TREE  ?>
     <script type="text/html" id="tmpl-nimble-level-tree">
       <div id="nimble-level-tree">
           <div class="sek-tree-wrap"></div>
@@ -769,6 +980,8 @@ function sek_print_nimble_customizer_tmpl() {
       </div>
     </script>
 
+
+    <?php // NIMBLE FEEDBACK  ?>
     <script type="text/html" id="tmpl-nimble-feedback-ui">
       <div id="nimble-feedback" data-sek-dismiss-pointer="<?php echo NIMBLE_FEEDBACK_NOTICE_ID; ?>">
           <div class="sek-feedback-step-one">
@@ -908,7 +1121,7 @@ function sek_is_plugin_active( $plugin ) {
 * @return bool True, if active for the network, otherwise false.
 */
 function sek_is_plugin_active_for_network( $plugin ) {
-  if ( ! is_multisite() )
+  if ( !is_multisite() )
     return false;
 
   $plugins = get_site_option( 'active_sitewide_plugins');
@@ -921,11 +1134,6 @@ function sek_is_plugin_active_for_network( $plugin ) {
 
 
 ?><?php
-namespace Nimble;
-if ( ! defined( 'ABSPATH' ) ) {
-    exit;
-}
-
 add_action( 'customize_controls_print_footer_scripts', '\Nimble\sek_print_nimble_input_templates' );
 function sek_print_nimble_input_templates() {
 
@@ -964,7 +1172,7 @@ function sek_print_nimble_input_templates() {
             <span class="czr-notice"><# print(input_data.notice_before_title); #></span><br/>
           <# } #>
           <# if ( 'hidden' !== input_type ) { #>
-            <# var title_width = ! _.isEmpty( input_data.title_width ) ? input_data.title_width : ''; #>
+            <# var title_width = !_.isEmpty( input_data.title_width ) ? input_data.title_width : ''; #>
             <div class="customize-control-title {{title_width}}"><# print( input_data.title ); #></div>
           <# } #>
           <# if ( input_data.notice_before ) { #>
@@ -1446,6 +1654,9 @@ function sek_print_nimble_input_templates() {
             <div aria-label="<?php _e('Content type', 'nimble-builder'); ?>" class="sek-ui-button-group" role="group">
                 <button type="button" aria-pressed="false" class="sek-ui-button" title="<?php _e('Pick a section', 'nimble-builder'); ?>" data-sek-content-type="section"><?php _e('Pick a section', 'nimble-builder'); ?></button>
                 <button type="button" aria-pressed="false" class="sek-ui-button" title="<?php _e('Pick a module', 'nimble-builder'); ?>" data-sek-content-type="module"><?php _e('Pick a module', 'nimble-builder'); ?></button>
+                <?php if ( defined( 'NIMBLE_TEMPLATE_GALLERY_ENABLED' ) && NIMBLE_TEMPLATE_GALLERY_ENABLED ) : ?>
+                <button type="button" aria-pressed="false" class="sek-ui-button" title="<?php _e('Pick a template', 'nimble-builder'); ?>" data-sek-content-type="template"><?php _e('Pick a template', 'nimble-builder'); ?></button>
+                <?php endif; ?>
             </div>
         </div>
       </script>
@@ -1475,10 +1686,10 @@ function sek_print_nimble_input_templates() {
                 },
                 modData = jQuery.extend( defaultModParams, modData );
 
-                if ( ! _.isEmpty( modData['icon'] ) ) {
+                if ( !_.isEmpty( modData['icon'] ) ) {
                     icon_img_src = sektionsLocalizedData.moduleIconPath + modData['icon'];
                     icon_img_html = '<img draggable="false" title="' + modData['title'] + '" alt="' +  modData['title'] + '" class="nimble-module-icons" src="' + icon_img_src + '"/>';
-                } else if ( ! _.isEmpty( modData['font_icon'] ) ) {
+                } else if ( !_.isEmpty( modData['font_icon'] ) ) {
                     icon_img_html = modData['font_icon'];
                 }
                 var title_attr = "<?php _e('Drag and drop or double-click to insert in your chosen target element.', 'nimble-builder'); ?>",
@@ -1506,12 +1717,17 @@ function sek_print_nimble_input_templates() {
         <input data-czrtype="{{data.input_id}}" type="hidden"/>
         <div class="sek-content-type-wrapper">
             <#
+            // June 2020 : the section collection is passed only when rendering pre-built sections
+            // @see sek_register_prebuilt_section_modules() and sek_get_sections_registration_params()
+            // For user saved sections, the rendering is done in javascript, not here
+            // @see @see _dev_control/modules/ui/_10_0_0_UI_module_and_section_pickers.js
             var section_collection = ( data.input_data && data.input_data.section_collection ) ? data.input_data.section_collection : [];
-            if ( _.isEmpty( section_collection ) ) {
-                wp.customize.errare('Error in js template tmpl-nimble-input___section_picker => missing section collection');
-                return;
-            }
+            // if ( _.isEmpty( section_collection ) ) {
+            //     wp.customize.errare('Error in js template tmpl-nimble-input___section_picker => missing section collection');
+            //     return;
+            // }
 
+            // FOR PREBUILT SECTIONS ONLY, user sections are rendered in javascript @see _dev_control/modules/ui/_10_0_0_UI_module_and_section_pickers.js
             _.each( section_collection, function( rawSecParams ) {
                 //normalizes the params
                 var section_type = 'content',
@@ -1525,7 +1741,7 @@ function sek_print_nimble_input_templates() {
                 },
                 modData = jQuery.extend( defaultParams, secParams );
 
-                if ( ! _.isEmpty( secParams['section_type'] ) ) {
+                if ( !_.isEmpty( secParams['section_type'] ) ) {
                     section_type = secParams['section_type'];
                 }
 
@@ -1786,13 +2002,13 @@ function sek_print_nimble_input_templates() {
  *  SETUP DYNAMIC SERVER REGISTRATION FOR SETTING
 /* ------------------------------------------------------------------------- */
 // Fired @'after_setup_theme:20'
-if ( ! class_exists( 'SEK_CZR_Dyn_Register' ) ) :
+if ( !class_exists( 'SEK_CZR_Dyn_Register' ) ) :
     class SEK_CZR_Dyn_Register {
         static $instance;
         public $sanitize_callbacks = array();// <= will be populated to cache the callbacks when invoking sek_get_module_sanitize_callbacks().
 
         public static function get_instance( $params ) {
-            if ( ! isset( self::$instance ) && ! ( self::$instance instanceof SEK_CZR_Dyn_Register ) )
+            if ( !isset( self::$instance ) && !( self::$instance instanceof SEK_CZR_Dyn_Register ) )
               self::$instance = new SEK_CZR_Dyn_Register( $params );
             return self::$instance;
         }
@@ -1855,9 +2071,9 @@ if ( ! class_exists( 'SEK_CZR_Dyn_Register' ) ) :
                     $sektion_collection = array_key_exists('collection', $sektionSettingValue) ? $sektionSettingValue['collection'] : array();
                     if ( is_array( $sektion_collection ) ) {
                         $model = sek_get_level_model( $setting_instance->id, $sektion_collection );
-                        if ( is_array( $model ) && ! empty( $model['module_type'] ) ) {
+                        if ( is_array( $model ) && !empty( $model['module_type'] ) ) {
                             $sanitize_callback = sek_get_registered_module_type_property( $model['module_type'], 'sanitize_callback' );
-                            if ( ! empty( $sanitize_callback ) && is_string( $sanitize_callback ) && function_exists( $sanitize_callback ) ) {
+                            if ( !empty( $sanitize_callback ) && is_string( $sanitize_callback ) && function_exists( $sanitize_callback ) ) {
                                 $setting_data = $sanitize_callback( $setting_data );
                             }
                         }
@@ -1878,9 +2094,9 @@ if ( ! class_exists( 'SEK_CZR_Dyn_Register' ) ) :
                     $sektion_collection = array_key_exists('collection', $sektionSettingValue) ? $sektionSettingValue['collection'] : array();
                     if ( is_array( $sektion_collection ) ) {
                         $model = sek_get_level_model( $setting_instance->id, $sektion_collection );
-                        if ( is_array( $model ) && ! empty( $model['module_type'] ) ) {
+                        if ( is_array( $model ) && !empty( $model['module_type'] ) ) {
                             $validate_callback = sek_get_registered_module_type_property( $model['module_type'], 'validate_callback' );
-                            if ( ! empty( $validate_callback ) && is_string( $validate_callback ) && function_exists( $validate_callback ) ) {
+                            if ( !empty( $validate_callback ) && is_string( $validate_callback ) && function_exists( $validate_callback ) ) {
                                 $validated = $validate_callback( $setting_data );
                             }
                         }
@@ -1914,7 +2130,7 @@ function sek_setup_nimble_editor( $content, $editor_id, $settings = array() ) {
 
 
 /**
- * started from a copy of class-wp-editor.php as of March 2019
+ * started from a copy of wp-includes/class-wp-editor.php as of March 2019
  * _NIMBLE_Editors::nimble_editor() is fired with sek_setup_nimble_editor() in hook 'customize_controls_print_footer_scripts'
  * the job of this class is to print the js parameters for the detached tinyMce editor for Nimble
  * the editor is then destroyed and re-instantiated each time a WP text editor module is customized
@@ -1996,7 +2212,7 @@ final class _NIMBLE_Editors {
       $settings,
       array(
         // Disable autop if the current post has blocks in it.
-        'wpautop'             => ! has_blocks(),
+        'wpautop'             => !has_blocks(),
         'media_buttons'       => true,
         'default_editor'      => '',
         'drag_drop_upload'    => false,
@@ -2078,13 +2294,13 @@ final class _NIMBLE_Editors {
       self::$drag_drop_upload = true;
     }
 
-    if ( ! empty( $set['editor_height'] ) ) {
+    if ( !empty( $set['editor_height'] ) ) {
       $height = ' style="height: ' . (int) $set['editor_height'] . 'px"';
     } else {
       $height = ' rows="' . (int) $set['textarea_rows'] . '"';
     }
 
-    if ( ! current_user_can( 'upload_files' ) ) {
+    if ( !current_user_can( 'upload_files' ) ) {
       $set['media_buttons'] = false;
     }
 
@@ -2121,17 +2337,17 @@ final class _NIMBLE_Editors {
       self::$editor_buttons_css = false;
     }
 
-    if ( ! empty( $set['editor_css'] ) ) {
+    if ( !empty( $set['editor_css'] ) ) {
       echo $set['editor_css'] . "\n";
     }
 
-    if ( ! empty( $buttons ) || $set['media_buttons'] ) {
+    if ( !empty( $buttons ) || $set['media_buttons'] ) {
       echo '<div id="wp-' . $editor_id_attr . '-editor-tools" class="wp-editor-tools hide-if-no-js">';
 
       if ( $set['media_buttons'] ) {
         self::$has_medialib = true;
 
-        if ( ! function_exists( 'media_buttons' ) ) {
+        if ( !function_exists( 'media_buttons' ) ) {
           include( ABSPATH . 'wp-admin/includes/media.php' );
         }
 
@@ -2155,7 +2371,7 @@ final class _NIMBLE_Editors {
     $quicktags_toolbar = '';
 
     if ( self::$this_quicktags ) {
-      if ( 'content' === $editor_id && ! empty( $GLOBALS['current_screen'] ) && $GLOBALS['current_screen']->base === 'post' ) {
+      if ( 'content' === $editor_id && !empty( $GLOBALS['current_screen'] ) && $GLOBALS['current_screen']->base === 'post' ) {
         $toolbar_id = 'ed_toolbar';
       } else {
         $toolbar_id = 'qt_' . $editor_id_attr . '_toolbar';
@@ -2330,7 +2546,7 @@ final class _NIMBLE_Editors {
             'wpview',
           );
 
-          if ( ! self::$has_medialib ) {
+          if ( !self::$has_medialib ) {
             $plugins[] = 'image';
           }
 
@@ -2352,7 +2568,7 @@ final class _NIMBLE_Editors {
             unset( $plugins[ $key ] );
           }
 
-          if ( ! empty( $mce_external_plugins ) ) {
+          if ( !empty( $mce_external_plugins ) ) {
 
             /**
              * Filters the translations loaded for external TinyMCE 3.x plugins.
@@ -2372,7 +2588,7 @@ final class _NIMBLE_Editors {
             $loaded_langs = array();
             $strings      = '';
 
-            if ( ! empty( $mce_external_languages ) ) {
+            if ( !empty( $mce_external_languages ) ) {
               foreach ( $mce_external_languages as $name => $path ) {
                 if ( @is_file( $path ) && @is_readable( $path ) ) {
                   include_once( $path );
@@ -2394,7 +2610,7 @@ final class _NIMBLE_Editors {
               $strings                       = '';
 
               // Try to load langs/[locale].js and langs/[locale]_dlg.js
-              if ( ! in_array( $name, $loaded_langs, true ) ) {
+              if ( !in_array( $name, $loaded_langs, true ) ) {
                 $path = str_replace( content_url(), '', $plugurl );
                 $path = WP_CONTENT_DIR . $path . '/langs/';
 
@@ -2422,7 +2638,7 @@ final class _NIMBLE_Editors {
                   }
                 }
 
-                if ( ! empty( $strings ) ) {
+                if ( !empty( $strings ) ) {
                   $ext_plugins .= "\n" . $strings . "\n";
                 }
               }
@@ -2438,7 +2654,7 @@ final class _NIMBLE_Editors {
         $settings            = self::default_settings();
         $settings['plugins'] = implode( ',', $plugins );
 
-        if ( ! empty( $mce_external_plugins ) ) {
+        if ( !empty( $mce_external_plugins ) ) {
           $settings['external_plugins'] = wp_json_encode( $mce_external_plugins );
         }
 
@@ -2450,7 +2666,7 @@ final class _NIMBLE_Editors {
         $mce_css       = $settings['content_css'];
         $editor_styles = get_editor_stylesheets();
 
-        if ( ! empty( $editor_styles ) ) {
+        if ( !empty( $editor_styles ) ) {
           // Force urlencoding of commas.
           foreach ( $editor_styles as $key => $url ) {
             if ( strpos( $url, ',' ) !== false ) {
@@ -2470,7 +2686,7 @@ final class _NIMBLE_Editors {
          */
         $mce_css = trim( apply_filters( 'nimble_mce_css', $mce_css ), ' ,' );
 
-        if ( ! empty( $mce_css ) ) {
+        if ( !empty( $mce_css ) ) {
           $settings['content_css'] = $mce_css;
         } else {
           unset( $settings['content_css'] );
@@ -2496,7 +2712,7 @@ final class _NIMBLE_Editors {
         //$mce_buttons = array( 'formatselect', 'bold', 'italic', 'bullist', 'numlist', 'blockquote', 'alignleft', 'aligncenter', 'alignright', 'link', 'wp_more', 'spellchecker' );
         $mce_buttons = array( 'formatselect', 'bold', 'italic', 'bullist', 'numlist', 'blockquote', 'alignleft', 'aligncenter', 'alignright', 'link', 'spellchecker' );
 
-        if ( ! wp_is_mobile() ) {
+        if ( !wp_is_mobile() ) {
           if ( $set['_content_editor_dfw'] ) {
             $mce_buttons[] = 'dfw';
           } else {
@@ -2519,7 +2735,7 @@ final class _NIMBLE_Editors {
         $mce_buttons_2 = array( 'strikethrough', 'hr', 'forecolor', 'pastetext', 'removeformat', 'charmap', 'outdent', 'indent', 'undo', 'redo' );
 
         // @nikeo modif
-        // if ( ! wp_is_mobile() ) {
+        // if ( !wp_is_mobile() ) {
         //   $mce_buttons_2[] = 'wp_help';
         // }
 
@@ -2561,7 +2777,7 @@ final class _NIMBLE_Editors {
 
         if ( post_type_supports( $post->post_type, 'post-formats' ) ) {
           $post_format = get_post_format( $post );
-          if ( $post_format && ! is_wp_error( $post_format ) ) {
+          if ( $post_format && !is_wp_error( $post_format ) ) {
             $body_class .= ' post-format-' . sanitize_html_class( $post_format );
           } else {
             $body_class .= ' post-format-standard';
@@ -2578,7 +2794,7 @@ final class _NIMBLE_Editors {
 
       $body_class .= ' locale-' . sanitize_html_class( strtolower( str_replace( '_', '-', get_user_locale() ) ) );
 
-      if ( ! empty( $set['tinymce']['body_class'] ) ) {
+      if ( !empty( $set['tinymce']['body_class'] ) ) {
         $body_class .= ' ' . $set['tinymce']['body_class'];
         unset( $set['tinymce']['body_class'] );
       }
@@ -2586,7 +2802,7 @@ final class _NIMBLE_Editors {
       $mceInit = array(
         'selector'          => "#$editor_id",
         'wpautop'           => (bool) $set['wpautop'],
-        'indent'            => ! $set['wpautop'],
+        'indent'            => !$set['wpautop'],
         'toolbar1'          => implode( ',', $mce_buttons ),
         'toolbar2'          => implode( ',', $mce_buttons_2 ),
         'toolbar3'          => implode( ',', $mce_buttons_3 ),
@@ -2634,7 +2850,7 @@ final class _NIMBLE_Editors {
         $mceInit = apply_filters( 'tiny_mce_before_init', $mceInit, $editor_id );
       }
 
-      if ( empty( $mceInit['toolbar3'] ) && ! empty( $mceInit['toolbar4'] ) ) {
+      if ( empty( $mceInit['toolbar3'] ) && !empty( $mceInit['toolbar4'] ) ) {
         $mceInit['toolbar3'] = $mceInit['toolbar4'];
         $mceInit['toolbar4'] = '';
       }
@@ -2655,9 +2871,9 @@ final class _NIMBLE_Editors {
         $val      = $value ? 'true' : 'false';
         $options .= $key . ':' . $val . ',';
         continue;
-      } elseif ( ! empty( $value ) && is_string( $value ) && (
-        ( '{' == $value{0} && '}' == $value{strlen( $value ) - 1} ) ||
-        ( '[' == $value{0} && ']' == $value{strlen( $value ) - 1} ) ||
+      } elseif ( !empty( $value ) && is_string( $value ) && (
+        ( '{' == $value[0] && '}' == $value[ strlen( $value ) - 1 ] ) ||
+        ( '[' == $value[0] && ']' == $value[ strlen( $value ) - 1 ] ) ||
         preg_match( '/^\(?function ?\(/', $value ) ) ) {
 
         $options .= $key . ':' . $value . ',';
@@ -3256,7 +3472,7 @@ final class _NIMBLE_Editors {
    * @return string Translation object, JSON encoded.
    */
   public static function wp_mce_translation( $mce_locale = '', $json_only = false ) {
-    if ( ! $mce_locale ) {
+    if ( !$mce_locale ) {
       $mce_locale = self::get_mce_locale();
     }
 
@@ -3315,13 +3531,13 @@ final class _NIMBLE_Editors {
   public static function force_uncompressed_tinymce() {
     $has_custom_theme = false;
     foreach ( self::$mce_settings as $init ) {
-      if ( ! empty( $init['theme_url'] ) ) {
+      if ( !empty( $init['theme_url'] ) ) {
         $has_custom_theme = true;
         break;
       }
     }
 
-    if ( ! $has_custom_theme ) {
+    if ( !$has_custom_theme ) {
       return;
     }
 
@@ -3349,7 +3565,7 @@ final class _NIMBLE_Editors {
 
     self::$tinymce_scripts_printed = true;
 
-    if ( ! isset( $concatenate_scripts ) ) {
+    if ( !isset( $concatenate_scripts ) ) {
       script_concat_settings();
     }
 
@@ -3366,7 +3582,7 @@ final class _NIMBLE_Editors {
   public static function editor_js() {
     global $tinymce_version;
 
-    $tmce_on = ! empty( self::$mce_settings );
+    $tmce_on = !empty( self::$mce_settings );
     $mceInit = $qtInit = '';
 
     if ( $tmce_on ) {
@@ -3379,7 +3595,7 @@ final class _NIMBLE_Editors {
       $mceInit = '{}';
     }
 
-    if ( ! empty( self::$qt_settings ) ) {
+    if ( !empty( self::$qt_settings ) ) {
       foreach ( self::$qt_settings as $editor_id => $init ) {
         $options = self::_parse_init( $init );
         $qtInit .= "'$editor_id':{$options},";
@@ -3455,7 +3671,7 @@ final class _NIMBLE_Editors {
       echo self::$ext_plugins . "\n";
     }
 
-    if ( ! is_admin() ) {
+    if ( !is_admin() ) {
       echo 'var ajaxurl = "' . admin_url( 'admin-ajax.php', 'relative' ) . '";';
     }
 
@@ -3474,9 +3690,9 @@ final class _NIMBLE_Editors {
           init = nimbleTinyMCEPreInit.mceInit[id];
           $wrap = tinymce.$( '#wp-' + id + '-wrap' );
 
-          if ( ( $wrap.hasClass( 'tmce-active' ) || ! nimbleTinyMCEPreInit.qtInit.hasOwnProperty( id ) ) && ! init.wp_skip_init ) {
+          if ( ( $wrap.hasClass( 'tmce-active' ) || !nimbleTinyMCEPreInit.qtInit.hasOwnProperty( id ) ) && !init.wp_skip_init ) {
             tinymce.init( init );
-            if ( ! window.wpActiveEditor ) {
+            if ( !window.wpActiveEditor ) {
               window.wpActiveEditor = id;//<= where is this used ?
             }
           }
@@ -3487,7 +3703,7 @@ final class _NIMBLE_Editors {
         for ( id in nimbleTinyMCEPreInit.qtInit ) {
           quicktags( nimbleTinyMCEPreInit.qtInit[id] );
 
-          if ( ! window.wpActiveEditor ) {
+          if ( !window.wpActiveEditor ) {
             window.wpActiveEditor = id;//<= where is this used ?
           }
         }
@@ -3607,7 +3823,7 @@ final class _NIMBLE_Editors {
      */
     $results = apply_filters( 'wp_link_query', $results, $query );
 
-    return ! empty( $results ) ? $results : false;
+    return !empty( $results ) ? $results : false;
   }
 
   /**
@@ -3688,6 +3904,355 @@ final class _NIMBLE_Editors {
   }
 }
 ?><?php
+////////////////////////////////////////////////////////////////
+// GENERIC HELPER FIRED IN ALL AJAX CALLBACKS
+// @param $params = array('check_nonce' => true )
+function sek_do_ajax_pre_checks( $params = array() ) {
+    $params = wp_parse_args( $params, array( 'check_nonce' => true ) );
+    if ( $params['check_nonce'] ) {
+        $action = 'save-customize_' . get_stylesheet();
+        if ( !check_ajax_referer( $action, 'nonce', false ) ) {
+             wp_send_json_error( array(
+                'code' => 'invalid_nonce',
+                'message' => __( __CLASS__ . '::' . __FUNCTION__ . ' => check_ajax_referer() failed.', 'nimble-builder' ),
+            ) );
+        }
+    }
+
+    if ( !is_user_logged_in() ) {
+        wp_send_json_error( __CLASS__ . '::' . __FUNCTION__ . ' => unauthenticated' );
+    }
+    if ( !current_user_can( 'edit_theme_options' ) ) {
+      wp_send_json_error( __CLASS__ . '::' . __FUNCTION__ . ' => user_cant_edit_theme_options');
+    }
+    if ( !current_user_can( 'customize' ) ) {
+        status_header( 403 );
+        wp_send_json_error( __CLASS__ . '::' . __FUNCTION__ . ' => customize_not_allowed' );
+    } else if ( !isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
+        status_header( 405 );
+        wp_send_json_error( __CLASS__ . '::' . __FUNCTION__ . ' => bad_method' );
+    }
+}//sek_do_ajax_pre_checks()
+
+
+
+// IMPORT IMG
+add_action( 'wp_ajax_sek_import_attachment', '\Nimble\sek_ajax_import_attachment' );
+// Fetches the list of revision for a given skope_id
+add_action( 'wp_ajax_sek_get_revision_history', '\Nimble\sek_get_revision_history' );
+// Fetches the revision for a given post id
+add_action( 'wp_ajax_sek_get_single_revision', '\Nimble\sek_get_single_revision' );
+// Fetches the category collection to generate the options for a select input
+// @see api.czrInputMap.category_picker
+add_action( 'wp_ajax_sek_get_post_categories', '\Nimble\sek_get_post_categories' );
+
+// Fetches the code editor params to generate the options for a textarea input
+// @see api.czrInputMap.code_editor
+add_action( 'wp_ajax_sek_get_code_editor_params', '\Nimble\sek_get_code_editor_params' );
+
+add_action( 'wp_ajax_sek_postpone_feedback', '\Nimble\sek_postpone_feedback_notification' );
+
+// <AJAX TO FETCH INPUT COMPONENTS>
+// this dynamic filter is declared on wp_ajax_ac_get_template in the czr_base_fmk
+// It allows us to populate the server response with the relevant module html template
+// $html = apply_filters( "ac_set_ajax_czr_tmpl___{$module_type}", '', $tmpl );
+add_filter( "ac_set_ajax_czr_tmpl___fa_icon_picker_input", '\Nimble\sek_get_fa_icon_list_tmpl', 10, 3 );
+
+// this dynamic filter is declared on wp_ajax_ac_get_template in the czr_base_fmk
+// It allows us to populate the server response with the relevant module html template
+// $html = apply_filters( "ac_set_ajax_czr_tmpl___{$module_type}", '', $tmpl );
+add_filter( "ac_set_ajax_czr_tmpl___font_picker_input", '\Nimble\sek_get_font_list_tmpl', 10, 3 );
+// </AJAX TO FETCH INPUT COMPONENTS>
+
+// Fetches the preset_sections
+add_action( 'wp_ajax_sek_get_preset_sections', '\Nimble\sek_get_preset_sektions' );
+
+
+/////////////////////////////////////////////////////////////////
+// hook : wp_ajax_sek_import_attachment
+function sek_ajax_import_attachment() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => false ) );
+
+    if ( !isset( $_POST['img_url'] ) || !is_string($_POST['img_url']) ) {
+        wp_send_json_error( 'missing_or_invalid_img_url_when_importing_image');
+    }
+
+    $id = sek_sideload_img_and_return_attachment_id( $_POST['img_url'] );
+    if ( is_wp_error( $id ) ) {
+        wp_send_json_error( __CLASS__ . '::' . __FUNCTION__ . ' => problem when trying to wp_insert_attachment() for img : ' . $_POST['img_url'] . ' | SERVER ERROR => ' . json_encode( $id ) );
+    } else {
+        wp_send_json_success([
+          'id' => $id,
+          'url' => wp_get_attachment_url( $id )
+        ]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////
+// REVISIONS
+// Fired in __construct()
+function sek_get_revision_history() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+        wp_send_json_error(  __CLASS__ . '::' . __FUNCTION__ . ' => missing skope_id' );
+    }
+    $rev_list = sek_get_revision_history_from_posts( $_POST['skope_id'] );
+    wp_send_json_success( $rev_list );
+}
+
+
+function sek_get_single_revision() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    if ( !isset( $_POST['revision_post_id'] ) || empty( $_POST['revision_post_id'] ) ) {
+        wp_send_json_error(  __CLASS__ . '::' . __FUNCTION__ . ' => missing revision_post_id' );
+    }
+    $revision = sek_get_single_post_revision( $_POST['revision_post_id'] );
+    wp_send_json_success( $revision );
+}
+
+
+
+////////////////////////////////////////////////////////////////
+// POST CATEGORIES => to be used in the category picker select input
+// Fired in __construct()
+function sek_get_post_categories() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+    $raw_cats = get_categories();
+    $raw_cats = is_array( $raw_cats ) ? $raw_cats : array();
+    $cat_collection = array();
+    foreach( $raw_cats as $cat ) {
+        $cat_collection[] = array(
+            'id' => $cat->term_id,
+            'slug' => $cat->slug,
+            'name' => sprintf( '%s (%s %s)', $cat->cat_name, $cat->count, __('posts', 'nimble-builder') )
+        );
+    }
+    wp_send_json_success( $cat_collection );
+}
+
+
+
+////////////////////////////////////////////////////////////////
+// CODE EDITOR PARAMS => to be used in the code editor input
+// Fired in __construct()
+function sek_get_code_editor_params() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+    $code_type = isset( $_POST['code_type'] ) ? $_POST['code_type'] : 'text/html';
+    $editor_params = nimble_get_code_editor_settings( array(
+        'type' => $code_type
+    ));
+    wp_send_json_success( $editor_params );
+}
+
+////////////////////////////////////////////////////////////////
+// POSTPONE FEEDBACK NOTIFICATION IN CUSTOMIZER
+// INSPIRED FROM CORE DISMISS POINTER MECHANISM
+// @see wp-admin/includes/ajax-actions.php
+function sek_postpone_feedback_notification() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    if ( !isset( $_POST['transient_duration_in_days'] ) ||!is_numeric( $_POST['transient_duration_in_days'] ) ) {
+        $transient_duration = 7 * DAY_IN_SECONDS;
+    } else {
+        $transient_duration = $_POST['transient_duration_in_days'] * DAY_IN_SECONDS;
+    }
+    set_transient( NIMBLE_FEEDBACK_NOTICE_ID, 'maybe_later', $transient_duration );
+    wp_die( 1 );
+}
+
+
+////////////////////////////////////////////////////////////////
+// FETCH FONT AWESOME ICONS
+// hook : ac_set_ajax_czr_tmpl___czr_tiny_mce_editor_module
+// this dynamic filter is declared on wp_ajax_ac_get_template
+// It allows us to populate the server response with the relevant module html template
+// $html = apply_filters( "ac_set_ajax_czr_tmpl___{$module_type}", '', $tmpl );
+//
+// For czr_tiny_mce_editor_module, we request the font_list tmpl
+function sek_get_fa_icon_list_tmpl( $html, $requested_tmpl = '', $posted_params = array() ) {
+    if ( empty( $requested_tmpl ) ) {
+        wp_send_json_error( __FUNCTION__ . ' => the requested tmpl is empty' );
+    }
+    return wp_json_encode(
+        sek_retrieve_decoded_font_awesome_icons()
+    );//will be sent by wp_send_json_success() in ::ac_set_ajax_czr_tmpl()
+}
+
+
+//retrieves faicons:
+// 1) from faicons.json if needed (transient doesn't exists, or is new version => set in TC_wfc ) and decodes them
+// otherwise
+// 2) from the transient set if it exists
+function sek_retrieve_decoded_font_awesome_icons() {
+    // this file must be generated with: https://github.com/presscustomizr/nimble-builder/issues/57
+    $faicons_json_path      = NIMBLE_BASE_PATH . '/assets/faicons.json';
+    $faicons_transient_name = 'sek_font_awesome_february_2020';
+    if ( false == get_transient( $faicons_transient_name ) ) {
+        if ( file_exists( $faicons_json_path ) ) {
+            $faicons_raw      = @file_get_contents( $faicons_json_path );
+
+            if ( false === $faicons_raw ) {
+                $faicons_raw = wp_remote_fopen( $faicons_json_path );
+            }
+
+            $faicons_decoded   = json_decode( $faicons_raw, true );
+            set_transient( $faicons_transient_name , $faicons_decoded , 60*60*24*3000 );
+        } else {
+            wp_send_json_error( __FUNCTION__ . ' => the file faicons.json is missing' );
+        }
+    }
+    else {
+        $faicons_decoded = get_transient( $faicons_transient_name );
+    }
+
+    return $faicons_decoded;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////
+// FETCH FONT LISTS
+// hook : ac_set_ajax_czr_tmpl___czr_tiny_mce_editor_module
+// For czr_tiny_mce_editor_module, we request the font_list tmpl
+function sek_get_font_list_tmpl( $html, $requested_tmpl = '', $posted_params = array() ) {
+    if ( empty( $requested_tmpl ) ) {
+        wp_send_json_error( __FUNCTION__ . ' => the requested tmpl is empty' );
+    }
+
+    return wp_json_encode( array(
+        'cfonts' => sek_get_cfonts(),
+        'gfonts' => sek_get_gfonts(),
+    ) );//will be sent by wp_send_json_success() in ::ac_set_ajax_czr_tmpl()
+}
+
+
+function sek_get_cfonts() {
+    $cfonts = array();
+    $raw_cfonts = array(
+        'Arial Black,Arial Black,Gadget,sans-serif',
+        'Century Gothic',
+        'Comic Sans MS,Comic Sans MS,cursive',
+        'Courier New,Courier New,Courier,monospace',
+        'Georgia,Georgia,serif',
+        'Helvetica Neue, Helvetica, Arial, sans-serif',
+        'Impact,Charcoal,sans-serif',
+        'Lucida Console,Monaco,monospace',
+        'Lucida Sans Unicode,Lucida Grande,sans-serif',
+        'Palatino Linotype,Book Antiqua,Palatino,serif',
+        'Tahoma,Geneva,sans-serif',
+        'Times New Roman,Times,serif',
+        'Trebuchet MS,Helvetica,sans-serif',
+        'Verdana,Geneva,sans-serif',
+    );
+    foreach ( $raw_cfonts as $font ) {
+      //no subsets for cfonts => epty array()
+      $cfonts[] = array(
+          'name'    => $font ,
+          'subsets'   => array()
+      );
+    }
+    return apply_filters( 'sek_font_picker_cfonts', $cfonts );
+}
+
+
+//retrieves gfonts:
+// 1) from webfonts.json if needed (transient doesn't exists, or is new version => set in TC_wfc ) and decodes them
+// otherwise
+// 2) from the transiet set if it exists
+//
+// => Until June 2017, the webfonts have been stored in 'tc_gfonts' transient
+// => In June 2017, the Google Fonts have been updated with a new webfonts.json
+// generated from : https://www.googleapis.com/webfonts/v1/webfonts?key=AIzaSyBID8gp8nBOpWyH5MrsF7doP4fczXGaHdA
+//
+// => The transient name is now : czr_gfonts_june_2017
+function sek_retrieve_decoded_gfonts() {
+    if ( false == get_transient( 'sek_gfonts_march_2020' ) ) {
+        $gfont_raw      = @file_get_contents( NIMBLE_BASE_PATH ."/assets/webfonts.json" );
+
+        if ( $gfont_raw === false ) {
+          $gfont_raw = wp_remote_fopen( NIMBLE_BASE_PATH ."/assets/webfonts.json" );
+        }
+
+        $gfonts_decoded   = json_decode( $gfont_raw, true );
+        set_transient( 'sek_gfonts_march_2020' , $gfonts_decoded , 60*60*24*3000 );
+    }
+    else {
+      $gfonts_decoded = get_transient( 'sek_gfonts_march_2020' );
+    }
+
+    return $gfonts_decoded;
+}
+
+//@return the google fonts
+function sek_get_gfonts( $what = null ) {
+    //checks if transient exists or has expired
+
+    $gfonts_decoded = sek_retrieve_decoded_gfonts();
+    $gfonts = array();
+    //$subsets = array();
+
+    // $subsets['all-subsets'] = sprintf( '%1$s ( %2$s %3$s )',
+    //   __( 'All languages' , 'text_doma' ),
+    //   count($gfonts_decoded['items']) + count( get_cfonts() ),
+    //   __('fonts' , 'text_doma' )
+    // );
+
+    foreach ( $gfonts_decoded['items'] as $font ) {
+      foreach ( $font['variants'] as $variant ) {
+        $name     = str_replace( ' ', '+', $font['family'] );
+        $gfonts[]   = array(
+            'name'    => $name . ':' .$variant
+            //'subsets'   => $font['subsets']
+        );
+      }
+      //generates subset list : subset => font number
+      // foreach ( $font['subsets'] as $sub ) {
+      //   $subsets[$sub] = isset($subsets[$sub]) ? $subsets[$sub]+1 : 1;
+      // }
+    }
+
+    //finalizes the subset array
+    // foreach ( $subsets as $subset => $font_number ) {
+    //   if ( 'all-subsets' == $subset )
+    //     continue;
+    //   $subsets[$subset] = sprintf('%1$s ( %2$s %3$s )',
+    //     $subset,
+    //     $font_number,
+    //     __('fonts' , 'text_doma' )
+    //   );
+    // }
+
+    return ('subsets' == $what) ? apply_filters( 'sek_font_picker_gfonts_subsets ', $subsets ) : apply_filters( 'sek_font_picker_gfonts', $gfonts )  ;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////
+// PRESET SECTIONS
+// Fired in __construct()
+// hook : 'wp_ajax_sek_get_preset_sektions'
+function sek_get_preset_sektions() {
+    sek_do_ajax_pre_checks();
+    // May 21st => back to the local data
+    // after problem was reported when fetching data remotely : https://github.com/presscustomizr/nimble-builder/issues/445
+    //$preset_sections = sek_get_preset_sections_api_data();
+    $preset_sections = sek_get_preset_section_collection_from_json();
+    if ( empty( $preset_sections ) ) {
+        wp_send_json_error( __CLASS__ . '::' . __FUNCTION__ . ' => no preset_sections when running sek_get_preset_sections_api_data()' );
+    }
+    wp_send_json_success( $preset_sections );
+}
+
+
+?><?php
 add_action( 'customize_register', '\Nimble\sek_catch_export_action', PHP_INT_MAX );
 function sek_catch_export_action( $wp_customize ) {
     if ( current_user_can( 'edit_theme_options' ) ) {
@@ -3700,7 +4265,7 @@ function sek_catch_export_action( $wp_customize ) {
 // fire from sek_catch_export_action() @hook 'customize_register'
 function sek_maybe_export() {
     $nonce = 'save-customize_' . get_stylesheet();
-    if ( ! isset( $_REQUEST['sek_export_nonce'] ) ) {
+    if ( !isset( $_REQUEST['sek_export_nonce'] ) ) {
         sek_error_log( __FUNCTION__ . ' => missing nonce.');
         return;
     }
@@ -3712,15 +4277,15 @@ function sek_maybe_export() {
         sek_error_log( __FUNCTION__ . ' => missing active locations param.');
         return;
     }
-    if ( ! wp_verify_nonce( $_REQUEST['sek_export_nonce'], $nonce ) ) {
+    if ( !wp_verify_nonce( $_REQUEST['sek_export_nonce'], $nonce ) ) {
         sek_error_log( __FUNCTION__ . ' => invalid none.');
         return;
     }
-    if ( ! is_user_logged_in() ) {
+    if ( !is_user_logged_in() ) {
         sek_error_log( __FUNCTION__ . ' => user not logged in.');
         return;
     }
-    if ( ! current_user_can( 'customize' ) ) {
+    if ( !current_user_can( 'customize' ) ) {
         sek_error_log( __FUNCTION__ . ' => missing customize capabilities.');
         return;
     }
@@ -3771,26 +4336,26 @@ add_action( 'wp_ajax_sek_pre_export_checks', '\Nimble\sek_ajax_pre_export_checks
 function sek_ajax_pre_export_checks() {
     //sek_error_log('PRE EXPORT CHECKS ?', $_POST );
     $action = 'save-customize_' . get_stylesheet();
-    if ( ! check_ajax_referer( $action, 'nonce', false ) ) {
+    if ( !check_ajax_referer( $action, 'nonce', false ) ) {
         wp_send_json_error( 'check_ajax_referer_failed' );
     }
-    if ( ! is_user_logged_in() ) {
+    if ( !is_user_logged_in() ) {
         wp_send_json_error( 'user_unauthenticated' );
     }
-    if ( ! current_user_can( 'edit_theme_options' ) ) {
+    if ( !current_user_can( 'edit_theme_options' ) ) {
         wp_send_json_error( 'user_cant_edit_theme_options' );
     }
-    if ( ! current_user_can( 'customize' ) ) {
+    if ( !current_user_can( 'customize' ) ) {
         status_header( 403 );
         wp_send_json_error( 'customize_not_allowed' );
-    } else if ( ! isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
+    } else if ( !isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
         status_header( 405 );
         wp_send_json_error( 'bad_ajax_method' );
     }
-    if ( ! isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+    if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
         wp_send_json_error( 'missing_skope_id' );
     }
-    if ( ! isset( $_POST['active_locations'] ) || empty( $_POST['active_locations'] ) ) {
+    if ( !isset( $_POST['active_locations'] ) || empty( $_POST['active_locations'] ) ) {
         wp_send_json_error( 'no_active_locations_to_export' );
     }
     wp_send_json_success();
@@ -3834,38 +4399,38 @@ function sek_parse_img_and_clean_id( $seks_data ) {
 
 
 // fetch the content from a user imported file
-add_action( 'wp_ajax_sek_get_imported_file_content', '\Nimble\sek_ajax_get_imported_file_content' );
-function sek_ajax_get_imported_file_content() {
+add_action( 'wp_ajax_sek_get_manually_imported_file_content', '\Nimble\sek_ajax_get_manually_imported_file_content' );
+function sek_ajax_get_manually_imported_file_content() {
     // sek_error_log(__FUNCTION__ . ' AJAX $_POST ?', $_POST );
     // sek_error_log(__FUNCTION__ . ' AJAX $_FILES ?', $_FILES );
     // sek_error_log(__FUNCTION__ . ' AJAX $_REQUEST ?', $_REQUEST );
 
     $action = 'save-customize_' . get_stylesheet();
-    if ( ! check_ajax_referer( $action, 'nonce', false ) ) {
+    if ( !check_ajax_referer( $action, 'nonce', false ) ) {
         wp_send_json_error( 'check_ajax_referer_failed' );
     }
-    if ( ! is_user_logged_in() ) {
+    if ( !is_user_logged_in() ) {
         wp_send_json_error( 'user_unauthenticated' );
     }
-    if ( ! current_user_can( 'edit_theme_options' ) ) {
+    if ( !current_user_can( 'edit_theme_options' ) ) {
         wp_send_json_error( 'user_cant_edit_theme_options' );
     }
-    if ( ! current_user_can( 'customize' ) ) {
+    if ( !current_user_can( 'customize' ) ) {
         status_header( 403 );
         wp_send_json_error( 'customize_not_allowed' );
-    } else if ( ! isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
+    } else if ( !isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
         status_header( 405 );
         wp_send_json_error( 'bad_ajax_method' );
     }
-    if ( ! isset( $_FILES['file_candidate'] ) || empty( $_FILES['file_candidate'] ) ) {
+    if ( !isset( $_FILES['file_candidate'] ) || empty( $_FILES['file_candidate'] ) ) {
         wp_send_json_error( 'missing_file_candidate' );
     }
-    if ( ! isset( $_POST['skope'] ) || empty( $_POST['skope'] ) ) {
+    if ( !isset( $_POST['skope'] ) || empty( $_POST['skope'] ) ) {
         wp_send_json_error( 'missing_skope' );
     }
 
     // load WP upload if not done yet
-    if ( ! function_exists( 'wp_handle_upload' ) ) {
+    if ( !function_exists( 'wp_handle_upload' ) ) {
         require_once( ABSPATH . 'wp-admin/includes/file.php' );
     }
 
@@ -3916,7 +4481,7 @@ function sek_ajax_get_imported_file_content() {
     //     )
     // );
     // check import structure
-    if ( ! is_array( $raw_unserialized_data ) || empty( $raw_unserialized_data['data']) || !is_array( $raw_unserialized_data['data'] ) || empty( $raw_unserialized_data['metas'] ) || !is_array( $raw_unserialized_data['metas'] ) ) {
+    if ( !is_array( $raw_unserialized_data ) || empty( $raw_unserialized_data['data']) || !is_array( $raw_unserialized_data['data'] ) || empty( $raw_unserialized_data['metas'] ) || !is_array( $raw_unserialized_data['metas'] ) ) {
         unlink( $file['file'] );
         wp_send_json_error(  'invalid_import_content' );
         return;
@@ -3929,15 +4494,19 @@ function sek_ajax_get_imported_file_content() {
         return;
     }
 
-    //sek_error_log('IMPORT BEFORE FILTER ?', $raw_unserialized_data );
-
+    $maybe_import_images = true;
     // in a pre-import-check context, we don't need to sniff and upload images
-    if ( isset( $_POST['pre_import_check'] ) && true == $_POST['pre_import_check'] ) {
-        remove_filter( 'nimble_pre_import', '\Nimble\sek_sniff_imported_img_url' );
+    if ( array_key_exists( 'pre_import_check', $_POST ) && true === sek_booleanize_checkbox_val( $_POST['pre_import_check'] ) ) {
+        $maybe_import_images = false;
+    }
+    // april 2020 : introduced for https://github.com/presscustomizr/nimble-builder/issues/663
+    if ( array_key_exists( 'import_img', $_POST ) && false === sek_booleanize_checkbox_val( $_POST['import_img'] ) ) {
+        $maybe_import_images = false;
     }
 
     $imported_content = array(
-        'data' => apply_filters( 'nimble_pre_import', $raw_unserialized_data['data'] ),
+        //'data' => apply_filters( 'nimble_pre_import', $raw_unserialized_data['data'], $do_import_images ),
+        'data' => sek_maybe_import_imgs( $raw_unserialized_data['data'], $maybe_import_images ),
         'metas' => $raw_unserialized_data['metas'],
         // the image import errors won't block the import
         // they are used when notifying user in the customizer
@@ -3953,25 +4522,120 @@ function sek_ajax_get_imported_file_content() {
 }
 
 
-// IMPORT FILTER
-add_filter( 'nimble_pre_import', '\Nimble\sek_sniff_imported_img_url' );
-function sek_sniff_imported_img_url( $seks_data ) {
+
+
+
+
+
+
+
+// fetch the content from a remotely fetched template file
+add_action( 'wp_ajax_sek_process_template_json', '\Nimble\sek_ajax_process_template_json' );
+function sek_ajax_process_template_json() {
+    // sek_error_log(__FUNCTION__ . ' AJAX $_POST ?', $_POST );
+    // sek_error_log(__FUNCTION__ . ' AJAX $_FILES ?', $_FILES );
+    // sek_error_log(__FUNCTION__ . ' AJAX $_REQUEST ?', $_REQUEST );
+
+    $action = 'save-customize_' . get_stylesheet();
+    if ( !check_ajax_referer( $action, 'nonce', false ) ) {
+        wp_send_json_error( __FUNCTION__ . ' => check_ajax_referer_failed' );
+    }
+    if ( !is_user_logged_in() ) {
+        wp_send_json_error( __FUNCTION__ . ' => user_unauthenticated' );
+    }
+    if ( !current_user_can( 'edit_theme_options' ) ) {
+        wp_send_json_error( __FUNCTION__ . ' => user_cant_edit_theme_options' );
+    }
+    if ( !current_user_can( 'customize' ) ) {
+        status_header( 403 );
+        wp_send_json_error( __FUNCTION__ . ' => customize_not_allowed' );
+    } else if ( !isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
+        status_header( 405 );
+        wp_send_json_error( __FUNCTION__ . ' => bad_ajax_method' );
+    }
+    if ( !isset($_POST['template_data']) || empty( $_POST['template_data'] ) ) {
+        wp_send_json_error( __FUNCTION__ . ' => missing_template_data' );
+    }
+
+    //$raw_unserialized_data = @unserialize( $raw );
+    $raw_unserialized_data = json_decode( wp_unslash( $_POST['template_data'] ), true );
+    if ( !is_array( $raw_unserialized_data ) ) {
+        wp_send_json_error( __FUNCTION__ . ' => invalid_template_data' );
+    }
+
+    //sek_error_log( __FUNCTION__ . ' =>TEMPLATE DATA ? ?', $raw_unserialized_data );
+    // VALIDATE IMPORTED CONTENT
+    // data structure :
+    // $raw_unserialized_data = array(
+    //     'data' => $seks_data,
+    //     'metas' => array(
+    //         'skope_id' => $_REQUEST['skope_id'],
+    //         'version' => NIMBLE_VERSION,
+    //         // is sent as a string : "__after_header,__before_main_wrapper,loop_start,__before_footer"
+    //         'active_locations' => is_string( $_REQUEST['active_locations'] ) ? explode( ',', $_REQUEST['active_locations'] ) : array(),
+    //         'date' => date("Y-m-d")
+    //     )
+    // );
+    // check import structure
+    if ( !is_array( $raw_unserialized_data ) || empty( $raw_unserialized_data['data']) || !is_array( $raw_unserialized_data['data'] ) || empty( $raw_unserialized_data['metas'] ) || !is_array( $raw_unserialized_data['metas'] ) ) {
+        wp_send_json_error(  __FUNCTION__ . ' => invalid_import_content' );
+        return;
+    }
+    // check version
+    // => current Nimble Version must be at least import version
+    if ( !empty( $raw_unserialized_data['metas']['version'] ) && version_compare( NIMBLE_VERSION, $raw_unserialized_data['metas']['version'], '<' ) ) {
+        wp_send_json_error( __FUNCTION__ . ' => nimble_builder_needs_update' );
+        return;
+    }
+
+    //sek_error_log('IMPORT BEFORE FILTER ?', $raw_unserialized_data );
+
+    $imported_content = array(
+        'data' => sek_maybe_import_imgs( $raw_unserialized_data['data'], $do_import_images = true ),
+        'metas' => $raw_unserialized_data['metas'],
+        // the image import errors won't block the import
+        // they are used when notifying user in the customizer
+        'img_errors' => !empty( Nimble_Manager()->img_import_errors ) ? implode(',', Nimble_Manager()->img_import_errors) : array()
+    );
+
+    //sek_error_log( __FUNCTION__ . ' =>IMPORT BEFORE FILTER ?', $imported_content );
+    // Send
+    wp_send_json_success( $imported_content );
+}
+
+
+
+
+
+
+
+
+// IMPORT IMG HELPER
+// recursive
+//add_filter( 'nimble_pre_import', '\Nimble\sek_maybe_import_imgs' );
+function sek_maybe_import_imgs( $seks_data, $do_import_images = true ) {
     $new_seks_data = array();
     foreach ( $seks_data as $key => $value ) {
         if ( is_array($value) ) {
-            $new_seks_data[$key] = sek_sniff_imported_img_url( $value );
+            $new_seks_data[$key] = sek_maybe_import_imgs( $value, $do_import_images );
         } else {
             if ( is_string( $value ) && false !== strpos( $value, '__img_url__' ) && sek_is_img_url( $value ) ) {
                 $url = str_replace( '__img_url__', '', $value );
-                //sek_error_log( __FUNCTION__ . ' URL?', $url );
-                $id = sek_sideload_img_and_return_attachment_id( $url );
-                if ( is_wp_error( $id ) ) {
-                    $value = null;
-                    $img_errors = Nimble_Manager()->img_import_errors;
-                    $img_errors[] = $url;
-                    Nimble_Manager()->img_import_errors = $img_errors;
+                // april 2020 : new option to skip importing images
+                // introduced for https://github.com/presscustomizr/nimble-builder/issues/663
+                if ( !$do_import_images ) {
+                    $value = $url;
                 } else {
-                    $value = $id;
+                    //sek_error_log( __FUNCTION__ . ' URL?', $url );
+                    $id = sek_sideload_img_and_return_attachment_id( $url );
+                    if ( is_wp_error( $id ) ) {
+                        $value = null;
+                        $img_errors = Nimble_Manager()->img_import_errors;
+                        $img_errors[] = $url;
+                        Nimble_Manager()->img_import_errors = $img_errors;
+                    } else {
+                        $value = $id;
+                    }
                 }
             }
             $new_seks_data[$key] = $value;
@@ -3990,6 +4654,378 @@ function sek_is_img_url( $url = '' ) {
     return false;
 }
 
+?><?php
+////////////////////////////////////////////////////////////////
+// Fetches the user saved templates
+add_action( 'wp_ajax_sek_get_all_saved_tmpl', '\Nimble\sek_ajax_get_all_saved_templates' );
+// @hook wp_ajax_sek_get_user_saved_templates
+function sek_ajax_get_all_saved_templates() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    $decoded_templates = sek_get_all_saved_templates();
+
+    if ( is_array($decoded_templates) ) {
+        wp_send_json_success( $decoded_templates );
+    } else {
+        if ( !empty( $decoded_templates ) ) {
+            sek_error_log(  __FUNCTION__ . ' error => invalid templates returned', $decoded_templates );
+            wp_send_json_error(  __FUNCTION__ . ' error => invalid templates returned' );
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
+// TEMPLATE GET CONTENT + METAS
+// Fetches the json of a given user template
+add_action( 'wp_ajax_sek_get_user_tmpl_json', '\Nimble\sek_ajax_sek_get_user_tmpl_json' );
+// @hook wp_ajax_sek_get_user_saved_templates
+function sek_ajax_sek_get_user_tmpl_json() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    // We must have a tmpl_post_name
+    if ( empty( $_POST['tmpl_post_name']) || !is_string( $_POST['tmpl_post_name'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_tmpl_post_name' );
+    }
+    // if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+    //     wp_send_json_error( __FUNCTION__ . '_missing_skope_id' );
+    // }
+    $tmpl_post = sek_get_saved_tmpl_post( $_POST['tmpl_post_name'] );
+    if ( !is_wp_error( $tmpl_post ) && $tmpl_post && is_object( $tmpl_post ) ) {
+        $tmpl_decoded = maybe_unserialize( $tmpl_post->post_content );
+        // Structure of $content :
+        // array(
+        //     'data' => $_POST['tmpl_data'],//<= json stringified
+        //     'tmpl_post_name' => ( !empty( $_POST['tmpl_post_name'] ) && is_string( $_POST['tmpl_post_name'] ) ) ? $_POST['tmpl_post_name'] : null,
+        //     'metas' => array(
+        //         'title' => $_POST['tmpl_title'],
+        //         'description' => $_POST['tmpl_description'],
+        //         'skope_id' => $_POST['skope_id'],
+        //         'version' => NIMBLE_VERSION,
+        //         // is sent as a string : "__after_header,__before_main_wrapper,loop_start,__before_footer"
+        //         'active_locations' => is_string( $_POST['active_locations'] ) ? explode( ',', $_POST['active_locations'] ) : array(),
+        //         'date' => date("Y-m-d"),
+        //         'theme' => sanitize_title_with_dashes( get_stylesheet() )
+        //     )
+        // );
+        if ( is_array( $tmpl_decoded ) && !empty( $tmpl_decoded['data'] ) && is_string( $tmpl_decoded['data'] ) ) {
+            $tmpl_decoded['data'] = json_decode( wp_unslash( $tmpl_decoded['data'], true ) );
+        }
+        wp_send_json_success( $tmpl_decoded );
+    } else {
+        wp_send_json_error( __FUNCTION__ . '_tmpl_post_not_found' );
+    }
+}
+
+////////////////////////////////////////////////////////////////
+// TEMPLATE SAVE
+// introduced in april 2020 for https://github.com/presscustomizr/nimble-builder/issues/655
+// ENABLED WHEN CONSTANT NIMBLE_TEMPLATE_SAVE_ENABLED === true
+add_action( 'wp_ajax_sek_save_user_template', '\Nimble\sek_ajax_save_user_template' );
+/////////////////////////////////////////////////////////////////
+// hook : wp_ajax_sek_save_user_template
+function sek_ajax_save_user_template() {
+    //sek_error_log( __FUNCTION__ . ' ALORS YEAH ? ?', $_POST );
+
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+    // TMPL DATA => the nimble content
+    if ( empty( $_POST['tmpl_data']) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_template_data' );
+    }
+    if ( !is_string( $_POST['tmpl_data'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_template_data_must_be_a_json_stringified' );
+    }
+
+    // TMPL METAS
+    // We must have a title
+    if ( empty( $_POST['tmpl_title']) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_template_title' );
+    }
+    if ( !is_string( $_POST['tmpl_description'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_template_description_must_be_a_string' );
+    }
+    if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_skope_id' );
+    }
+    if ( !isset( $_POST['active_locations'] ) || empty( $_POST['active_locations'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_active_locations' );
+    }
+
+    // make sure description and title are clean before DB
+    $tmpl_title = wp_strip_all_tags( $_POST['tmpl_title'] );
+    $tmpl_description = wp_strip_all_tags( $_POST['tmpl_description'] );
+
+    //sek_error_log(__FUNCTION__ .  '$_POST?', $_POST );
+
+    // sek_error_log('json decode ?', json_decode( wp_unslash( $_POST['sek_data'] ), true ) );
+    $template_to_save = array(
+        'data' => $_POST['tmpl_data'],//<= json stringified
+        'tmpl_post_name' => ( !empty( $_POST['tmpl_post_name'] ) && is_string( $_POST['tmpl_post_name'] ) ) ? $_POST['tmpl_post_name'] : null,
+        'metas' => array(
+            'title' => $tmpl_title,
+            'description' => $tmpl_description,
+            'skope_id' => $_POST['skope_id'],
+            'version' => NIMBLE_VERSION,
+            // is sent as a string : "__after_header,__before_main_wrapper,loop_start,__before_footer"
+            'active_locations' => is_array( $_POST['active_locations'] ) ? $_POST['active_locations'] : array(),
+            'date' => date("Y-m-d"),
+            'theme' => sanitize_title_with_dashes( get_stylesheet() )
+        )
+    );
+
+    $saved_template_post = sek_update_saved_tmpl_post( $template_to_save );
+    if ( is_wp_error( $saved_template_post ) || is_null($saved_template_post) || empty($saved_template_post) ) {
+        wp_send_json_error( __FUNCTION__ . ' => error when invoking sek_update_saved_tmpl_post()' );
+    } else {
+        // sek_error_log( 'ALORS CE POST?', $saved_template_post );
+        wp_send_json_success( [ 'tmpl_post_id' => $saved_template_post->ID ] );
+    }
+    //sek_error_log( __FUNCTION__ . '$_POST' ,  $_POST);
+}
+
+////////////////////////////////////////////////////////////////
+// TEMPLATE REMOVE
+// introduced in may 2020 for https://github.com/presscustomizr/nimble-builder/issues/655
+// ENABLED WHEN CONSTANT NIMBLE_TEMPLATE_SAVE_ENABLED === true
+add_action( 'wp_ajax_sek_remove_user_template', '\Nimble\sek_ajax_remove_user_template' );
+/////////////////////////////////////////////////////////////////
+// hook : wp_ajax_sek_remove_user_template
+function sek_ajax_remove_user_template() {
+    //sek_error_log( __FUNCTION__ . ' ALORS YEAH IN REMOVAL ? ?', $_POST );
+
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    // We must have a tmpl_post_name
+    if ( empty( $_POST['tmpl_post_name']) || !is_string( $_POST['tmpl_post_name'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_tmpl_post_name' );
+    }
+    // if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+    //     wp_send_json_error( __FUNCTION__ . '_missing_skope_id' );
+    // }
+    $tmpl_post_to_remove = sek_get_saved_tmpl_post( $_POST['tmpl_post_name'] );
+
+    sek_error_log( __FUNCTION__ . ' => so $tmpl_post_to_remove ' . $_POST['tmpl_post_name'], $tmpl_post_to_remove );
+
+    if ( $tmpl_post_to_remove && is_object( $tmpl_post_to_remove ) ) {
+        $r = wp_delete_post( $tmpl_post_to_remove->ID, true );
+        if ( is_wp_error( $r ) ) {
+            wp_send_json_error( __FUNCTION__ . '_removal_error' );
+        }
+    } else {
+        wp_send_json_error( __FUNCTION__ . '_tmpl_post_not_found' );
+    }
+
+    if ( is_wp_error( $tmpl_post_to_remove ) || is_null($tmpl_post_to_remove) || empty($tmpl_post_to_remove) ) {
+        wp_send_json_error( __FUNCTION__ . '_removal_error' );
+    } else {
+        // sek_error_log( 'ALORS CE POST?', $saved_template_post );
+        wp_send_json_success( [ 'tmpl_post_removed' => $_POST['tmpl_post_name'] ] );
+    }
+    //sek_error_log( __FUNCTION__ . '$_POST' ,  $_POST);
+}
+
+?><?php
+////////////////////////////////////////////////////////////////
+// Fetches the user saved sections
+add_action( 'wp_ajax_sek_get_all_saved_sections', '\Nimble\sek_ajax_get_all_saved_sections' );
+// @hook wp_ajax_sek_get_user_saved_sections
+function sek_ajax_get_all_saved_sections() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    $decoded_sections = sek_get_all_saved_sections();
+
+    if ( is_array($decoded_sections) ) {
+        wp_send_json_success( $decoded_sections );
+    } else {
+        if ( !empty( $decoded_sections ) ) {
+            sek_error_log(  __FUNCTION__ . ' error => invalid sections returned', $decoded_sections );
+            wp_send_json_error(  __FUNCTION__ . ' error => invalid sections returned' );
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////
+// SECTION GET CONTENT + METAS
+// Fetches the json of a given user section
+add_action( 'wp_ajax_sek_get_user_section_json', '\Nimble\sek_ajax_sek_get_user_section_json' );
+// @hook wp_ajax_sek_get_user_saved_sections
+function sek_ajax_sek_get_user_section_json() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    // We must have a section_post_name
+    if ( empty( $_POST['section_post_name']) || !is_string( $_POST['section_post_name'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_section_post_name' );
+    }
+    // if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+    //     wp_send_json_error( __FUNCTION__ . '_missing_skope_id' );
+    // }
+    $section_post = sek_get_saved_section_post( $_POST['section_post_name'] );
+    if ( !is_wp_error( $section_post ) && $section_post && is_object( $section_post ) ) {
+        $section_decoded = maybe_unserialize( $section_post->post_content );
+        // Structure of $content :
+        // array(
+        //     'data' => $_POST['section_data'],//<= json stringified
+        //     'section_post_name' => ( !empty( $_POST['section_post_name'] ) && is_string( $_POST['section_post_name'] ) ) ? $_POST['section_post_name'] : null,
+        //     'metas' => array(
+        //         'title' => $_POST['section_title'],
+        //         'description' => $_POST['section_description'],
+        //         'skope_id' => $_POST['skope_id'],
+        //         'version' => NIMBLE_VERSION,
+        //         // is sent as a string : "__after_header,__before_main_wrapper,loop_start,__before_footer"
+        //         'active_locations' => is_string( $_POST['active_locations'] ) ? explode( ',', $_POST['active_locations'] ) : array(),
+        //         'date' => date("Y-m-d"),
+        //         'theme' => sanitize_title_with_dashes( get_stylesheet() )
+        //     )
+        // );
+        if ( is_array( $section_decoded ) && !empty( $section_decoded['data'] ) && is_string( $section_decoded['data'] ) ) {
+            $section_decoded['data'] = json_decode( wp_unslash( $section_decoded['data'], true ) );
+        }
+
+        wp_send_json_success( $section_decoded );
+    } else {
+        wp_send_json_error( __FUNCTION__ . '_section_post_not_found' );
+    }
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////
+// SECTION SAVE
+// introduced in april 2020 for https://github.com/presscustomizr/nimble-builder/issues/655
+// ENABLED WHEN CONSTANT NIMBLE_SECTION_SAVE_ENABLED === true
+add_action( 'wp_ajax_sek_save_user_section', '\Nimble\sek_ajax_save_user_section' );
+/////////////////////////////////////////////////////////////////
+// hook : wp_ajax_sek_save_user_section
+function sek_ajax_save_user_section() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+    // TMPL DATA => the nimble content
+    if ( empty( $_POST['section_data']) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_section_data' );
+    }
+    if ( !is_string( $_POST['section_data'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_section_data_must_be_a_json_stringified' );
+    }
+
+    // TMPL METAS
+    // We must have a title
+    if ( empty( $_POST['section_title']) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_section_title' );
+    }
+    if ( !is_string( $_POST['section_description'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_section_description_must_be_a_string' );
+    }
+    if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_skope_id' );
+    }
+    // if ( !isset( $_POST['active_locations'] ) || empty( $_POST['active_locations'] ) ) {
+    //     wp_send_json_error( __FUNCTION__ . '_missing_active_locations' );
+    // }
+
+
+    // clean level ids and replace them with a placeholder string
+    $seks_data = json_decode( wp_unslash( $_POST['section_data'] ), true );
+    $seks_data = sek_section_save_clean_id( $seks_data );
+
+    // make sure description and title are clean before DB
+    $sec_title = wp_strip_all_tags( $_POST['section_title'] );
+    $sec_description = wp_strip_all_tags( $_POST['section_description'] );
+
+    $section_to_save = array(
+        'data' => $seks_data,//<= json stringified
+        // the section post name is provided only when updating
+        'section_post_name' => ( !empty( $_POST['section_post_name'] ) && is_string( $_POST['section_post_name'] ) ) ? $_POST['section_post_name'] : null,
+        'metas' => array(
+            'title' => $sec_title,
+            'description' => $sec_description,
+            'skope_id' => $_POST['skope_id'],
+            'version' => NIMBLE_VERSION,
+            // is sent as a string : "__after_header,__before_main_wrapper,loop_start,__before_footer"
+            //'active_locations' => is_array( $_POST['active_locations'] ) ? $_POST['active_locations'] : array(),
+            'date' => date("Y-m-d"),
+            'theme' => sanitize_title_with_dashes( get_stylesheet() )
+        )
+    );
+
+    $saved_section_post = sek_update_saved_section_post( $section_to_save );
+    if ( is_wp_error( $saved_section_post ) || is_null($saved_section_post) || empty($saved_section_post) ) {
+        wp_send_json_error( __FUNCTION__ . ' => error when invoking sek_update_saved_section_post()' );
+    } else {
+        wp_send_json_success( [ 'section_post_id' => $saved_section_post->ID ] );
+    }
+}
+
+
+// SAVE FILTER
+function sek_section_save_clean_id( $seks_data = array() ) {
+    $new_seks_data = array();
+    if ( !is_array( $seks_data ) ) {
+        sek_error_log( __FUNCTION__ . ' error => seks_data should be an array');
+        return array();
+    }
+
+    foreach ( $seks_data as $key => $value ) {
+        if ( is_array($value) ) {
+            $new_seks_data[$key] = sek_section_save_clean_id( $value );
+        } else {
+            switch( $key ) {
+                // case 'bg-image' :
+                // case 'img' :
+                //     if ( is_int( $value ) && (int)$value > 0 ) {
+                //         $value = '__img_url__' . wp_get_attachment_url((int)$value);
+                //     }
+                // break;
+                case 'id' :
+                    if ( is_string( $value ) && false !== strpos( $value, '__nimble__' ) ) {
+                        $value = '__rep__me__';
+                    }
+                break;
+            }
+            $new_seks_data[$key] = $value;
+        }
+    }
+    return $new_seks_data;
+}
+
+
+////////////////////////////////////////////////////////////////
+// SECTION REMOVE
+// introduced in may 2020 for https://github.com/presscustomizr/nimble-builder/issues/655
+// ENABLED WHEN CONSTANT NIMBLE_SECTION_SAVE_ENABLED === true
+add_action( 'wp_ajax_sek_remove_user_section', '\Nimble\sek_ajax_remove_user_section' );
+/////////////////////////////////////////////////////////////////
+// hook : wp_ajax_sek_remove_user_section
+function sek_ajax_remove_user_section() {
+    sek_do_ajax_pre_checks( array( 'check_nonce' => true ) );
+
+    // We must have a section_post_name
+    if ( empty( $_POST['section_post_name']) || !is_string( $_POST['section_post_name'] ) ) {
+        wp_send_json_error( __FUNCTION__ . '_missing_section_post_name' );
+    }
+    // if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+    //     wp_send_json_error( __FUNCTION__ . '_missing_skope_id' );
+    // }
+    $section_post_to_remove = sek_get_saved_section_post( $_POST['section_post_name'] );
+
+    if ( $section_post_to_remove && is_object( $section_post_to_remove ) ) {
+        $r = wp_delete_post( $section_post_to_remove->ID, true );
+        if ( is_wp_error( $r ) ) {
+            wp_send_json_error( __FUNCTION__ . '_removal_error' );
+        }
+    } else {
+        wp_send_json_error( __FUNCTION__ . '_section_post_not_found' );
+    }
+
+    if ( is_wp_error( $section_post_to_remove ) || is_null($section_post_to_remove) || empty($section_post_to_remove) ) {
+        wp_send_json_error( __FUNCTION__ . '_removal_error' );
+    } else {
+        wp_send_json_success( [ 'section_post_removed' => $_POST['section_post_name'] ] );
+    }
+}
 ?><?php
 // WP 5.0.0 compat. until the bug is fixed
 // this hook fires before the customize changeset is inserter / updated in database

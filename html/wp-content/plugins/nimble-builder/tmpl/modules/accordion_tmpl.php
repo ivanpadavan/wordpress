@@ -1,11 +1,11 @@
 <?php
 /* Developers : you can override this template from a theme with a file that has this path : 'nimble_templates/modules/{original-module-template-file-name}.php' */
 namespace Nimble;
-if ( ! defined( 'ABSPATH' ) ) {
+if ( !defined( 'ABSPATH' ) ) {
     exit;
 }
 
-if ( ! function_exists( 'Nimble\sek_print_accordion' ) ) {
+if ( !function_exists( 'Nimble\sek_print_accordion' ) ) {
   function sek_print_accordion( $accord_collec = array(), $accord_opts, $model ) {
       $accord_collec = is_array( $accord_collec ) ? $accord_collec : array();
 
@@ -32,12 +32,18 @@ if ( ! function_exists( 'Nimble\sek_print_accordion' ) ) {
               foreach( $accord_collec as $key => $item ) {
                   $title = !empty( $item['title_text'] ) ? $item['title_text'] : sprintf( '%s %s', __('Accordion title', 'nimble-builder'), '#' . $ind );
                   $item_html_content = $item['text_content'];
-                  if ( ! skp_is_customizing() ) {
+                  if ( !skp_is_customizing() ) {
                       $item_html_content = apply_filters( 'nimble_parse_for_smart_load', $item_html_content );
                   }
 
-                  // added Oct. 2019 when revamping presscustomizr.com
-                  $item_html_content = sek_parse_template_tags( $item_html_content );
+                  // Use our own content filter instead of $content = apply_filters( 'the_content', $tiny_mce_content );
+                  // because of potential third party plugins corrupting 'the_content' filter. https://github.com/presscustomizr/nimble-builder/issues/233
+                  // added may 2020 for #699
+                  // 'the_nimble_tinymce_module_content' includes parsing template tags
+                  $item_html_content = apply_filters( 'the_nimble_tinymce_module_content', $item_html_content );
+
+                  // added may 2020 related to https://github.com/presscustomizr/nimble-builder/issues/688
+                  $item_html_content = sek_strip_script_tags( $item_html_content );
 
                   // Put them together
                   $title_attr = esc_html( esc_attr( $item['title_attr'] ) );

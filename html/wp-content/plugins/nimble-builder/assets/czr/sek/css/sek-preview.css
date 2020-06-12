@@ -69,7 +69,7 @@
 /* Make sure tinyMce module is always accessible
   see https://github.com/presscustomizr/nimble-builder/issues/243
 */
-.sek-module [data-sek-input-type="detached_tinymce_editor"] {
+.sek-module [data-sek-input-type="detached_tinymce_editor"], [data-sek-module-type="czr_simple_html_module"] {
   min-height: 30px
 }
 
@@ -180,12 +180,13 @@
     width: 1.6em!important;
     border-left: 1px dotted white;
 }
-.sek-dyn-ui-icons [data-sek-click-on="pick-content"] {
+.sek-dyn-ui-wrapper .sek-dyn-ui-icons [data-sek-click-on="toggle-save-section-ui"] {
     /*padding-left: 9px;*/
     padding-left: 0.42em;
     margin-left: 0px;
     width: 1.6em!important;
     border-left: 1px dotted #fff;
+    color: #ffff00!important;
 }
 .sek-dyn-ui-location-type {
     position: absolute;
@@ -661,6 +662,8 @@
   cursor: pointer;
   width: 50px;
   height: 50px;
+  line-height: 50px;
+  font-size: 22px;
   /*color: #0085ba;
   color: rgba(0, 133, 186, 0.6);*/
   color: #535353;
@@ -853,6 +856,7 @@
 }
 .sek-module-placeholder-content > p {
   padding: 35px 10px;
+  font-size: 16px!important;
 }
 
 
@@ -928,11 +932,12 @@
     border-radius: 1000px;
     width: 18px;
     height: 18px;
+    font-size: 13px;
+    line-height: 18px;
     background-color: #000;
     color: #fff;
     border: none;
     outline: none;
-    font-size: 13px;
     overflow: hidden;
     -webkit-transition: width .5s ease,background-color .5s ease;
     -o-transition: width .5s ease,background-color .5s ease;
@@ -947,8 +952,6 @@
     transition: all .20s ease;
     opacity: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-    font-size: 13px;
-    line-height: 26px;
 }
 .sek-add-content-btn.sek-mouse-is-close {
     z-index: 10000;
@@ -1488,4 +1491,27 @@ https://github.com/presscustomizr/nimble-builder/issues/317 */
 .sek-module-placeholder .material-icons {
   font-size: inherit;
   color: #cfcfcf;
+}
+
+
+.nimble-shortcode-notice-in-preview {
+  font-size: 16px;
+  line-height: 1.5em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+  padding: 10px 20px;
+  margin: 5px 0 15px;
+  position: relative;
+  background: #fff;
+  border: 1px solid #ccd0d4;
+  border-left-color: #00a0d2;
+  border-left-width: 4px;
+  box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+.nimble-shortcode-notice-in-preview > i {
+  color: #00a0d2;
+}
+@media(max-width:768px) {
+  .nimble-shortcode-notice-in-preview {
+    font-size: 14px;
+  }
 }

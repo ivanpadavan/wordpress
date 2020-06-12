@@ -283,10 +283,15 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   // this is used to know what ui elements are currently being displayed
                   self.registered = new api.Value([]);
 
-
-                  api.bind( 'ready', function() {
+                  // June 2020 : added for https://github.com/presscustomizr/nimble-builder/issues/708
+                  if ( wp.customize.apiIsReady ) {
                         self.doSektionThinksOnApiReady();
-                  });//api.bind( 'ready' )
+                  } else {
+                        api.bind( 'ready', function() {
+                              self.doSektionThinksOnApiReady();
+                        });
+                  }
+
 
                   // Add the skope id on save
                   // Uses a WP core hook to filter the query on a customize_save action
@@ -518,10 +523,12 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   self.setupTopBar();//@see specific dev file
 
                   // SAVE SECTION UI
-                  if ( sektionsLocalizedData.isSavedSectionEnabled ) {
-                        self.setupSaveUI();
-                  }
+                  // June 2020 : for https://github.com/presscustomizr/nimble-builder/issues/520 and https://github.com/presscustomizr/nimble-builder/issues/713
+                  self.setupSaveSectionUI();
 
+                  // SAVE TEMPLATE UI
+                  // April 2020 : introduced for https://github.com/presscustomizr/nimble-builder/issues/655
+                  self.setupSaveTmplUI();
 
                   // SETUP DOUBLE CLICK INSERTION THINGS
                   // Stores the preview target for double click insertion
@@ -609,6 +616,9 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                               });
                         });
                   });//api.previewer.bind()
+
+                  // April 2020. For https://github.com/presscustomizr/nimble-builder/issues/651
+                  self.setupTemplateGallery();
 
             },//doSektionThinksOnApiReady
 
@@ -988,10 +998,21 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                         window.open($(this).data('doc-href'), '_blank');
                   });
 
+                  $('.sek-tmpl-saving', self.topBarId ).on( 'click', function(evt) {
+                        // Focus on the Nimble panel
+                        // api.panel( sektionsLocalizedData.sektionsPanelId, function( _panel_ ) {
+                        //       self.rootPanelFocus();
+                        //       _panel_.focus();
+                        // });
+                        evt.preventDefault();
+                        self.tmplDialogVisible(!self.tmplDialogVisible());// self.tmplDialogVisible() is initialized false
+                  });
+
+
                   // NOTIFICATION WHEN USING CUSTOM TEMPLATE
                   // implemented for https://github.com/presscustomizr/nimble-builder/issues/304
                   var maybePrintNotificationForUsageOfNimbleTemplate = function( templateSettingValue ) {
-                        if ( $(self.topBarId).length < 1 )
+                        if ( $(self.topBarId).length < 1 || sektionsLocalizedData.isDebugMode )
                           return;
                         if ( _.isObject( templateSettingValue ) && templateSettingValue.local_template && 'default' !== templateSettingValue.local_template ) {
                               $(self.topBarId).find('.sek-notifications').html([
@@ -1287,6 +1308,13 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   self.levelTreeExpanded.bind( function(expanded) {
                         self.cachedElements.$body.toggleClass( 'sek-level-tree-expanded', expanded );
                         if ( expanded ) {
+                              // Close template gallery, template saver, section saver
+                              self.templateGalleryExpanded(false);
+                              self.tmplDialogVisible(false);
+                              if ( self.saveSectionDialogVisible ) {
+                                    self.saveSectionDialogVisible(false);
+                              }
+
                               // Set the level tree now
                               self.setLevelTreeValue();
 
@@ -1639,48 +1667,480 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
       });//$.extend()
 })( wp.customize, jQuery );
 //global sektionsLocalizedData
+//
+//Note : idOfSectionToSave is set when user clicks on the save icon, and is reset when saving/updating closing save dialog
 var CZRSeksPrototype = CZRSeksPrototype || {};
 (function ( api, $ ) {
       $.extend( CZRSeksPrototype, {
-            // SAVE DIALOG BLOCK
+            // SAVE SECTION DIALOG BLOCK
             // fired in ::initialize()
-            setupSaveUI : function() {
+            setupSaveSectionUI : function() {
                   var self = this;
-                  self.saveUIVisible = new api.Value( false );
-                  self.saveUIVisible.bind( function( to, from, params ){
-                        self.toggleSaveUI( to, params ? params.id : null );
+
+                  // Declare api values and schedule reactions
+                  self.saveSectionDialogVisible = new api.Value( false );// Hidden by default
+
+                  // The observer for visibility
+                  // connected to other observers
+                  self.saveSectionDialogVisible.bind( function( visible ){
+                        if ( visible ) {
+                              // close template gallery
+                              // close level tree
+                              self.templateGalleryExpanded(false);
+                              self.levelTreeExpanded(false);
+                              if ( self.tmplDialogVisible ) {
+                                    self.tmplDialogVisible(false);
+                              }
+                        }
+                        self.toggleSaveSectionUI(visible);
                   });
+
+                  // Will store the collection of saved sections
+                  self.allSavedSections = new api.Value('_not_populated_');
+                  // When the collection is refreshed
+                  // - populate select options
+                  // - set the select value to default 'none'
+                  self.allSavedSections.bind( function( sec_collection ) {
+                        if ( !_.isObject(sec_collection) ) {
+                              api.errare('error setupSaveSectionUI => section collection should be an object');
+                              return;
+                        }
+                        sec_collection = _.isEmpty(sec_collection) ? {} : sec_collection;
+                        self.refreshSectionPickerHtml( sec_collection );
+                  });
+
+                  self.saveSectionDialogMode = new api.Value('hidden');// 'save' default mode is set when dialog html is rendered
+                  self.saveSectionDialogMode.bind( function(mode){
+                        if ( !_.contains(['hidden', 'save', 'update', 'remove' ], mode ) ) {
+                              api.errare('error setupSaveSectionUI => unknown section dialog mode', mode );
+                              mode = 'save';
+                        }
+
+                        // Set the button pressed state
+                        var $secSaveDialogWrap = $('#nimble-top-section-save-ui'),
+                            $titleInput = $secSaveDialogWrap.find('#sek-saved-section-title'),
+                            $descInput = $secSaveDialogWrap.find('#sek-saved-section-description');
+
+                        $secSaveDialogWrap.find('[data-section-mode-switcher]').attr('aria-pressed', false );
+                        $secSaveDialogWrap.find('[data-section-mode-switcher="' + mode +'"]').attr('aria-pressed', true );
+
+                        // update the current mode
+                        $('#nimble-top-section-save-ui').attr('data-sek-section-dialog-mode', mode );
+
+                        // make sure the remove dialog is hidden
+                        $secSaveDialogWrap.removeClass('sek-removal-confirmation-opened');
+
+                        // execute actions depending on the selected mode
+                        switch( mode ) {
+                              case 'save' :
+                                    // When selecting 'save', make sure the title and description input are cleaned
+                                    $titleInput.val('');
+                                    $descInput.val('');
+                              break;
+                              case 'update' :
+                              case 'remove' :
+                                    var $selectEl = $secSaveDialogWrap.find('.sek-saved-section-picker');
+                                        // Make sure the select value is always reset when switching mode
+                                        $selectEl.val('none').trigger('change');
+
+                                    self.setSavedSectionCollection().done( function( sec_collection ) {
+                                          // refresh section picker in case the user updated without changing anything
+                                          self.refreshSectionPickerHtml();
+                                    });
+                              break;
+                        }//switch
+
+                        // when user clicks on the remove icon of a section in the collection
+                        // => hide save and update buttons
+                        if ( 'remove' === mode && _.isEmpty( self.idOfSectionToSave ) ) {
+                            $secSaveDialogWrap.addClass('sek-is-removal-only');
+                        } else {
+                            $secSaveDialogWrap.removeClass('sek-is-removal-only');
+                        }
+                  });//self.saveSectionDialogMode.bind()
+
             },
 
 
+
+
+
+
+
+
+            ///////////////////////////////////////////////
+            ///// RENDER DIALOG BOX AND SCHEDULE CLICK ACTIONS
+            refreshSectionPickerHtml : function( sec_collection ) {
+                  sec_collection = sec_collection || this.allSavedSections();
+
+                  var $secSaveDialogWrap = $('#nimble-top-section-save-ui'),
+                      $selectEl = $secSaveDialogWrap.find('.sek-saved-section-picker');
+                  // Make sure the select value is always reset when switching mode
+                  $selectEl.val('none').trigger('change');
+
+                  // empty all options but the default 'none' one
+                  $selectEl.find('option').each( function() {
+                        if ( 'none' !== $(this).attr('value') ) {
+                              $(this).remove();
+                        }
+                  });
+
+                  // Make sure we don't populate the collection twice ( if user clicks two times fast )
+                  // if ( $secSaveDialogWrap.hasClass('sec-collection-populated') )
+                  //   return;
+
+                  var _default_title = 'section title not set',
+                      _title,
+                      _last_modified_date,
+                      _html = '';
+                  _.each( sec_collection, function( _sec_data, _sec_post_name ) {
+                        if ( !_.isObject(_sec_data) )
+                          return;
+                        _last_modified_date = _sec_data.last_modified_date ? _sec_data.last_modified_date : '';
+                        _title = _sec_data.title ? _sec_data.title : _default_title;
+                        _html +='<option value="' + _sec_post_name + '">' + [ _title, sektionsLocalizedData.i18n['Last modified'] + ' : ' + _last_modified_date ].join(' | ') + '</option>';
+                  });
+
+                  $selectEl.append(_html);
+
+                  // flag so we know it's done
+                  // => controls the CSS visibility of the select element
+                  $secSaveDialogWrap.addClass('section-collection-populated');
+            },
+
+
+            //@param = { }
+            renderSectionSaveUI : function( params ) {
+                  if ( $('#nimble-top-section-save-ui').length > 0 )
+                    return $('#nimble-top-section-save-ui');
+
+                  var self = this;
+
+                  try {
+                        _tmpl =  wp.template( 'nimble-top-section-save-ui' )( {} );
+                  } catch( er ) {
+                        api.errare( 'Error when parsing nimble-top-section-save-ui template', er );
+                        return false;
+                  }
+                  $('#customize-preview').after( $( _tmpl ) );
+                  return $('#nimble-top-section-save-ui');
+            },
+
+
+
+            ///////////////////////////////////////////////
+            ///// DOM EVENTS
+            // Fired once, on first rendering
+            maybeScheduleSectionSaveDOMEvents : function() {
+                  var self = this, $secSaveDialogWrap = $('#nimble-top-section-save-ui');
+                  if ( $secSaveDialogWrap.data('nimble-sec-save-dom-events-scheduled') )
+                    return;
+
+                  // ATTACH DOM EVENTS
+                  // Dialog Mode Switcher
+                  $secSaveDialogWrap.on( 'click', '[data-section-mode-switcher]', function(evt) {
+                        evt.preventDefault();
+                        self.saveSectionDialogMode($(this).data('section-mode-switcher'));
+                  });
+
+                  // React to section select
+                  // update title and description fields on section selection
+                  $secSaveDialogWrap.on( 'change', '.sek-saved-section-picker', function(evt){ self.reactOnSectionSelection(evt, $(this) ); });
+
+                  // SAVE
+                  $secSaveDialogWrap.on( 'click', '.sek-do-save-section', function(evt){
+                        $secSaveDialogWrap.addClass('nimble-section-processing-ajax');
+                        self.saveOrUpdateSavedSection(evt).done( function( response ) {
+                              $secSaveDialogWrap.removeClass('nimble-section-processing-ajax');
+                              if ( response.success ) {
+                                    self.saveSectionDialogVisible( false );
+                                    self.setSavedSectionCollection( { refresh : true } );// <= true for refresh
+                              }
+                        });
+                  });
+
+                  // UPDATE
+                  $secSaveDialogWrap.on( 'click', '.sek-do-update-section', function(evt){
+                        var $selectEl = $secSaveDialogWrap.find('.sek-saved-section-picker'),
+                            sectionPostNameCandidateForUpdate = $selectEl.val();
+                        // make sure we don't try to remove the default option
+                        if ( 'none' === sectionPostNameCandidateForUpdate || _.isEmpty(sectionPostNameCandidateForUpdate) )
+                          return;
+
+                        $secSaveDialogWrap.addClass('nimble-section-processing-ajax');
+                        self.saveOrUpdateSavedSection(evt, sectionPostNameCandidateForUpdate).done( function(response) {
+                              $secSaveDialogWrap.removeClass('nimble-section-processing-ajax');
+                              if ( response.success ) {
+                                    self.saveSectionDialogVisible( false );
+                                    self.setSavedSectionCollection( { refresh : true } )// <= true for refresh
+                                          .done( function( sec_collection ) {
+                                                // refresh section picker in case the user updated without changing anything
+                                                self.refreshSectionPickerHtml();
+                                          });
+                              }
+                        });
+                  });
+
+                  // REMOVE
+                  // Reveal remove dialog
+                  $secSaveDialogWrap.on( 'click', '.sek-open-remove-confirmation', function(evt){
+                        $secSaveDialogWrap.addClass('sek-removal-confirmation-opened');
+                  });
+
+                  // Do Remove
+                  $secSaveDialogWrap.on( 'click', '.sek-do-remove-section', function(evt){
+                        var $selectEl = $secSaveDialogWrap.find('.sek-saved-section-picker'),
+                            sectionPostNameCandidateForRemoval = $selectEl.val();
+                        // make sure we don't try to remove the default option
+                        if ( 'none' === sectionPostNameCandidateForRemoval || _.isEmpty(sectionPostNameCandidateForRemoval) )
+                          return;
+
+                        $secSaveDialogWrap.addClass('nimble-section-processing-ajax');
+                        self.removeSavedSection(evt, sectionPostNameCandidateForRemoval).done( function(response) {
+                              $secSaveDialogWrap.removeClass('nimble-section-processing-ajax');
+                              $secSaveDialogWrap.removeClass('sek-removal-confirmation-opened');
+                              if ( response.success ) {
+                                    self.setSavedSectionCollection( { refresh : true } );// <= true for refresh
+                              }
+                        });
+                  });
+
+                  // Cancel Remove
+                  $secSaveDialogWrap.on( 'click', '.sek-cancel-remove-section', function(evt){
+                        $secSaveDialogWrap.removeClass('sek-removal-confirmation-opened');
+                  });
+
+
+                  // Switch to update mode
+                  //$secSaveDialogWrap.on( 'click', '[data-section-mode-switcher="update"]', function(evt){  });
+
+                  $('.sek-close-dialog', $secSaveDialogWrap ).on( 'click', function(evt) {
+                        evt.preventDefault();
+                        self.saveSectionDialogVisible(false);
+                  });
+
+                  // Say we're done with DOM event scheduling
+                  $secSaveDialogWrap.data('nimble-sec-save-dom-events-scheduled', true );
+            },
+
+
+
+            // Is used in update and remove modes
+            reactOnSectionSelection : function(evt, $selectEl ){
+                  var self = this,
+                      $secSaveDialogWrap = $('#nimble-top-section-save-ui'),
+                      _sectionPostName = $selectEl.val(),
+                      $titleInput = $secSaveDialogWrap.find('#sek-saved-section-title'),
+                      $descInput = $secSaveDialogWrap.find('#sek-saved-section-description'),
+                      // The informative class control the visibility of the title and the description in CSS
+                      _informativeClass = 'update' === self.saveSectionDialogMode() ? 'sek-section-update-selected' : 'sek-section-remove-selected';
+
+                  if ( 'none' === _sectionPostName ) {
+                        $titleInput.val('');
+                        $descInput.val('');
+                        $secSaveDialogWrap.removeClass(_informativeClass);
+                  } else {
+                        var _allSavedSections = self.allSavedSections();
+                        var _selectedSection = _sectionPostName;
+
+                        // normalize
+                        _allSavedSections = ( _.isObject(_allSavedSections) && !_.isArray(_allSavedSections) ) ? _allSavedSections : {};
+                        _allSavedSections[_sectionPostName] = $.extend( {
+                            title : '',
+                            description : '',
+                            last_modified_date : ''
+                        }, _allSavedSections[_sectionPostName] || {} );
+
+                        $titleInput.val( _allSavedSections[_sectionPostName].title );
+                        $descInput.val( _allSavedSections[_sectionPostName].description );
+                        $secSaveDialogWrap.addClass(_informativeClass);
+                  }
+            },
+
+
+
+
+            ///////////////////////////////////////////////
+            ///// AJAX ACTIONS
+            // Fired on 'click' on .sek-do-save-section btn
+            // @param sectionPostNameCandidateForUpdate is only provided when saving
+            saveOrUpdateSavedSection : function(evt, sectionPostNameCandidateForUpdate ) {
+                  var self = this, _dfd_ = $.Deferred();
+                  // idOfSectionToSave is set when reacting to click action
+                  // @see react to preview 'sek-toggle-save-section-ui'
+                  if ( !self.idOfSectionToSave || _.isEmpty( self.idOfSectionToSave ) ) {
+                        api.errare('saveOrUpdateSavedSection => error => missing section id');
+                        return _dfd_.resolve( {success:false});
+                  }
+                  evt.preventDefault();
+                  var $_title = $('#sek-saved-section-title'),
+                      section_title = $_title.val(),
+                      section_description = $('#sek-saved-section-description').val(),
+                      sectionModel = $.extend( true, {}, self.getLevelModel( self.idOfSectionToSave ) );
+
+                  if ( 'no_match' == sectionModel ) {
+                        api.errare('saveOrUpdateSavedSection => error => no section model with id ' + self.idOfSectionToSave );
+                        return _dfd_.resolve( {success:false});
+                  }
+
+                  if ( _.isEmpty( section_title ) ) {
+                        $_title.addClass('error');
+                        api.previewer.trigger('sek-notify', {
+                              type : 'error',
+                              duration : 10000,
+                              message : [
+                                    '<span style="font-size:0.95em">',
+                                      '<strong>' + sektionsLocalizedData.i18n['A title is required'] + '</strong>',
+                                    '</span>'
+                              ].join('')
+
+                        });
+                        return _dfd_.resolve( {success:false});
+                  }
+
+                  $('#sek-saved-section-title').removeClass('error');
+
+                  // Do some pre-processing before ajaxing
+                  // Note : ids will be replaced server side
+                  sectionModel = self.preProcessSection( sectionModel );
+                  if ( !_.isObject( sectionModel ) ) {
+                        api.errare('::saveOrUpdateSavedSection => error => invalid sectionModel');
+                        _dfd_.resolve( {success:false});
+                  }
+
+                  wp.ajax.post( 'sek_save_user_section', {
+                        nonce: api.settings.nonce.save,
+                        section_data: JSON.stringify( sectionModel ),
+                        // the following will be saved in 'metas'
+                        section_title: section_title,
+                        section_description: section_description,
+                        section_post_name: sectionPostNameCandidateForUpdate || '',// <= provided when updating a section
+                        skope_id: api.czr_skopeBase.getSkopeProperty( 'skope_id' ),
+                        //active_locations : api.czr_sektions.activeLocations()
+                  })
+                  .done( function( response ) {
+                        //console.log('SAVED POST ID', response );
+                        _dfd_.resolve( {success:true});
+
+                        // response is {section_post_id: 436}
+                        api.previewer.trigger('sek-notify', {
+                            type : 'success',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Template saved'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  })
+                  .fail( function( er ) {
+                        _dfd_.resolve( {success:false});
+                        api.errorLog( 'ajax sek_save_section => error', er );
+                        api.previewer.trigger('sek-notify', {
+                            type : 'error',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Error when processing template'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  })
+                  .always( function() {
+                        // reset the id of section to save
+                        // => because we need to know when we are in 'remove' mode when user clicked on remove icon in the section collection, => which hides save and update buttons
+                        self.idOfSectionToSave = null;
+                  });
+                  return _dfd_;
+            },//saveOrUpdateSavedSection
+
+
+
+            // Fired on 'click on .sek-do-remove-section btn
+            removeSavedSection : function(evt, sectionPostNameCandidateForRemoval ) {
+                  var self = this, _dfd_ = $.Deferred();
+                  evt.preventDefault();
+                  wp.ajax.post( 'sek_remove_user_section', {
+                        nonce: api.settings.nonce.save,
+                        section_post_name: sectionPostNameCandidateForRemoval
+                        //skope_id: api.czr_skopeBase.getSkopeProperty( 'skope_id' )
+                  })
+                  .done( function( response ) {
+                        _dfd_.resolve( {success:true});
+                        // response is {section_post_id: 436}
+                        api.previewer.trigger('sek-notify', {
+                            type : 'success',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Template removed'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  })
+                  .fail( function( er ) {
+                        _dfd_.resolve( {success:false});
+                        api.errorLog( 'ajax sek_remove_section => error', er );
+                        api.previewer.trigger('sek-notify', {
+                            type : 'error',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Error when processing templates'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  })
+                  .always( function() {
+                        // reset the id of section to save
+                        // => because we need to know when we are in 'remove' mode when user clicked on remove icon in the section collection, => which hides save and update buttons
+                        self.idOfSectionToSave = null;
+                  });
+
+                  return _dfd_;
+            },
+
+
+
+            ///////////////////////////////////////////////
+            ///// REVEAL / HIDE DIALOG BOX
+            /// react on self.saveSectionDialogVisible.bind(...)
             // @return void()
-            // self.saveUIVisible.bind( function( visible ){
-            //       self.toggleSaveUI( visible );
+            // self.saveSectionDialogVisible.bind( function( visible ){
+            //       self.toggleSaveSectionUI( visible );
             // });
-            toggleSaveUI : function( visible, sectionId ) {
+            toggleSaveSectionUI : function( visible ) {
                   visible = _.isUndefined( visible ) ? true : visible;
                   var self = this,
                       _renderAndSetup = function() {
-                            $.when( self.renderAndSetupSaveUITmpl({}) ).done( function( $_el ) {
+                            $.when( self.renderSectionSaveUI({}) ).done( function( $_el ) {
+                                  self.maybeScheduleSectionSaveDOMEvents();//<= schedule on the first display only
                                   self.saveUIContainer = $_el;
                                   //display
                                   _.delay( function() {
-                                      self.cachedElements.$body.addClass('nimble-save-ui-visible');
+                                        // set dialog mode now so we display the relevant fields on init
+                                        self.saveSectionDialogMode('save');// Default mode is save
+                                        self.cachedElements.$body.addClass('sek-save-section-ui-visible');
                                   }, 200 );
                                   // set section id input value
-                                  $('#sek-saved-section-id').val( sectionId );
+                                  //$('#sek-saved-section-id').val( sectionId );
                             });
                       },
                       _hide = function() {
                             var dfd = $.Deferred();
-                            self.cachedElements.$body.removeClass('nimble-save-ui-visible');
-                            if ( $( '#nimble-top-save-ui' ).length > 0 ) {
+                            self.cachedElements.$body.removeClass('sek-save-section-ui-visible');
+                            if ( $( '#nimble-top-section-save-ui' ).length > 0 ) {
                                   //remove Dom element after slide up
                                   _.delay( function() {
-
+                                        // set dialog mode back to 'hidden' mode
+                                        self.saveSectionDialogMode = self.saveSectionDialogMode ? self.saveSectionDialogMode : new api.Value();
+                                        self.saveSectionDialogMode('hidden');
                                         self.saveUIContainer.remove();
+                                        // reset the id of section to save
+                                        // => because we need to know when we are in 'remove' mode when user clicked on remove icon in the section collection, => which hides save and update buttons
+                                        self.idOfSectionToSave = null;
                                         dfd.resolve();
-                                  }, 300 );
+                                  }, 250 );
                             } else {
                                 dfd.resolve();
                             }
@@ -1691,112 +2151,658 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                         _renderAndSetup();
                   } else {
                         _hide().done( function() {
-                              self.saveUIVisible( false );//should be already false
+                              self.saveSectionDialogVisible( false );//should be already false
                         });
                   }
             },
 
 
-            // @return a section model with clean ids
-            // also removes the section properties "id" and "level", which are dynamically set when dragging and dropping
+            ///////////////////////////////////////////////
+            ///// TMPL COLLECTION
+            // @return $.promise
+            // @param params = {refresh : false};
+            setSavedSectionCollection : function( params ) {
+                  var self = this, _dfd_ = $.Deferred();
+
+                  // refresh is true on save, update, remove success
+                  params = params || {refresh : false};
+
+                  // If the collection is already set, return it.
+                  // unless this is a "refresh" case
+                  if ( !params.refresh && '_not_populated_' !== self.allSavedSections() ) {
+                        return _dfd_.resolve( self.allSavedSections() );
+                  }
+
+                  var _promise;
+                  // Prevent a double request while ajax request is being processed
+                  if ( self.sectionCollectionPromise && 'pending' === self.sectionCollectionPromise.state() ) {
+                        _promise = self.sectionCollectionPromise;
+                  } else {
+                        _promise = self.getSavedSectionCollection( params );
+                  }
+                  _promise.done( function( sec_collection ) {
+                        self.allSavedSections( sec_collection );
+                        _dfd_.resolve( sec_collection );
+                  });
+                  return _dfd_.promise();
+            },
+
+            // @return a promise
+            // @param params = {refresh : false};
+            // also used from the input Constructor of sek_my_sections_sec_picker_module
+            // @param params = {refresh : false};
+            getSavedSectionCollection : function( params ) {
+                  var self = this;
+                  // refresh is true on save, update, remove success
+                  params = params || {refresh : false};
+
+                  self.sectionCollectionPromise = $.Deferred();
+                  if ( !params.refresh && '_not_populated_' !== self.allSavedSections() ) {
+                        self.sectionCollectionPromise.resolve( self.allSavedSections() );
+                        return self.sectionCollectionPromise;
+                  }
+                  wp.ajax.post( 'sek_get_all_saved_sections', {
+                        nonce: api.settings.nonce.save
+                        //skope_id: api.czr_skopeBase.getSkopeProperty( 'skope_id' )
+                  })
+                  .done( function( sec_collection ) {
+                        if ( _.isObject(sec_collection) && !_.isArray( sec_collection ) ) {
+                              self.sectionCollectionPromise.resolve( sec_collection );
+                        } else {
+                              self.sectionCollectionPromise.resolve( {} );
+                              api.errorLog('control::getSavedSectionCollection => collection is empty or invalid');
+                        }
+
+                        // response is {section_post_id: 436}
+                        //self.saveSectionDialogVisible( false );
+                        // api.previewer.trigger('sek-notify', {
+                        //     type : 'success',
+                        //     duration : 10000,
+                        //     message : [
+                        //           '<span style="font-size:0.95em">',
+                        //             '<strong>@missi18n Your section has been saved.</strong>',
+                        //           '</span>'
+                        //     ].join('')
+                        // });
+                  })
+                  .fail( function( er ) {
+                        api.errorLog( 'ajax sek_get_all_saved_section => error', er );
+                        api.previewer.trigger('sek-notify', {
+                            type : 'error',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Error when processing templates'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                        self.sectionCollectionPromise.resolve({});
+                  });
+
+                  return self.sectionCollectionPromise;
+            },
+
+            // @return a section model
+            // Note : ids are reset server side
             // Example of section model before preprocessing
             // {
             //    collection: [{…}]
-            //    id: "" //<= to remove
-            //    level: "section" // <= to remove
+            //    id: "" //<= reset server side
+            //    level: "section"
+            //    is_nested : false
             //    options: {bg: {…}}
             //    ver_ini: "1.1.8"
             // }
-            preProcessSektion : function( sectionModel ) {
-                  var self = this, sektionCandidate = self.cleanIds( sectionModel );
-                  return _.omit( sektionCandidate, function( val, key ) {
-                        return _.contains( ['id', 'level'], key );
+            preProcessSection : function( sectionModel ) {
+                  if ( !_.isObject( sectionModel ) ) {
+                        return null;
+                  }
+                  var preprocessedModel = $.extend( {}, true, sectionModel );
+                  // Make sure a nested section is saved as normal
+                  if ( _.has( preprocessedModel, 'is_nested') ) {
+                        preprocessedModel = _.omit( preprocessedModel, 'is_nested' );
+                  }
+                  return preprocessedModel;
+            }
+      });//$.extend()
+})( wp.customize, jQuery );
+//global sektionsLocalizedData
+// introduced in april 2020 for https://github.com/presscustomizr/nimble-builder/issues/655
+var CZRSeksPrototype = CZRSeksPrototype || {};
+(function ( api, $ ) {
+      $.extend( CZRSeksPrototype, {
+            // SAVE TMPL DIALOG BLOCK
+            // fired in ::initialize()
+            setupSaveTmplUI : function() {
+                  var self = this;
+
+                  // Declare api values and schedule reactions
+                  self.tmplDialogVisible = new api.Value( false );// Hidden by default
+
+                  if ( !sektionsLocalizedData.isTemplateSaveEnabled ) {
+                     return;
+                  }
+                  self.tmplDialogVisible.bind( function( visible ){
+                        if ( visible ) {
+                              // close template gallery
+                              // close level tree
+                              self.templateGalleryExpanded(false);
+                              self.levelTreeExpanded(false);
+                              if ( self.saveSectionDialogVisible ) {
+                                    self.saveSectionDialogVisible(false);
+                              }
+                        }
+                        self.toggleSaveTmplUI(visible);
                   });
+
+                  // Will store the collection of saved templates
+                  self.allSavedTemplates = new api.Value('_not_populated_');
+                  // When the collection is refreshed
+                  // - populate select options
+                  // - set the select value to default 'none'
+                  self.allSavedTemplates.bind( function( tmpl_collection ) {
+                        if ( !_.isObject(tmpl_collection) ) {
+                              api.errare('error setupSaveTmplUI => tmpl collection should be an object');
+                              return;
+                        }
+                        tmpl_collection = _.isEmpty(tmpl_collection) ? {} : tmpl_collection;
+                        self.refreshTmplPickerHtml( tmpl_collection );
+                  });
+
+                  self.tmplDialogMode = new api.Value('hidden');// 'save' default mode is set when dialog html is rendered
+                  self.tmplDialogMode.bind( function(mode){
+                        if ( !_.contains(['hidden', 'save', 'update', 'remove' ], mode ) ) {
+                              api.errare('::setupSaveTmplUI => unknown tmpl dialog mode', mode );
+                              mode = 'save';
+                        }
+
+                        // Set the button pressed state
+                        var $tmplDialogWrapper = $('#nimble-top-tmpl-save-ui'),
+                            $titleInput = $tmplDialogWrapper.find('#sek-saved-tmpl-title'),
+                            $descInput = $tmplDialogWrapper.find('#sek-saved-tmpl-description');
+
+                        $tmplDialogWrapper.find('[data-tmpl-mode-switcher]').attr('aria-pressed', false );
+                        $tmplDialogWrapper.find('[data-tmpl-mode-switcher="' + mode +'"]').attr('aria-pressed', true );
+
+                        // update the current mode
+                        $('#nimble-top-tmpl-save-ui').attr('data-sek-tmpl-dialog-mode', mode );
+
+                        // make sure the remove dialog is hidden
+                        $tmplDialogWrapper.removeClass('sek-removal-confirmation-opened');
+
+                        // execute actions depending on the selected mode
+                        switch( mode ) {
+                              case 'save' :
+                                    // When selecting 'save', make sure the title and description input are cleaned
+                                    $titleInput.val('');
+                                    $descInput.val('');
+                              break;
+                              case 'update' :
+                              case 'remove' :
+                                    var $selectEl = $tmplDialogWrapper.find('.sek-saved-tmpl-picker');
+                                        // Make sure the select value is always reset when switching mode
+                                        $selectEl.val('none').trigger('change');
+
+                                    self.setSavedTmplCollection().done( function( tmpl_collection ) {
+                                          // refresh tmpl picker in case the user updated without changing anything
+                                          self.refreshTmplPickerHtml();
+                                    });
+                              break;
+                        }//switch
+                  });//self.tmplDialogMode.bind()
+
+            },
+
+
+
+            ///////////////////////////////////////////////
+            ///// RENDER DIALOG BOX AND SCHEDULE CLICK ACTIONS
+            refreshTmplPickerHtml : function( tmpl_collection ) {
+                  tmpl_collection = tmpl_collection || this.allSavedTemplates();
+
+                  var $tmplDialogWrapper = $('#nimble-top-tmpl-save-ui'),
+                      $selectEl = $tmplDialogWrapper.find('.sek-saved-tmpl-picker');
+                  // Make sure the select value is always reset when switching mode
+                  $selectEl.val('none').trigger('change');
+
+                  // empty all options but the default 'none' one
+                  $selectEl.find('option').each( function() {
+                        if ( 'none' !== $(this).attr('value') ) {
+                              $(this).remove();
+                        }
+                  });
+
+                  // Make sure we don't populate the collection twice ( if user clicks two times fast )
+                  // if ( $tmplDialogWrapper.hasClass('tmpl-collection-populated') )
+                  //   return;
+
+                  var _default_title = 'template title not set',
+                      _title,
+                      _last_modified_date,
+                      _html = '';
+                  _.each( tmpl_collection, function( _tmpl_data, _tmpl_post_name ) {
+                        if ( !_.isObject(_tmpl_data) )
+                          return;
+                        _last_modified_date = _tmpl_data.last_modified_date ? _tmpl_data.last_modified_date : '';
+                        _title = _tmpl_data.title ? _tmpl_data.title : _default_title;
+                        _html +='<option value="' + _tmpl_post_name + '">' + [ _title, sektionsLocalizedData.i18n['Last modified'] + ' : ' + _last_modified_date ].join(' | ') + '</option>';
+                  });
+
+                  $selectEl.append(_html);
+
+                  // flag so we know it's done
+                  // => controls the CSS visibility of the select element
+                  $tmplDialogWrapper.addClass('tmpl-collection-populated');
             },
 
 
             //@param = { }
-            renderAndSetupSaveUITmpl : function( params ) {
-                  if ( $( '#nimble-top-save-ui' ).length > 0 )
-                    return $( '#nimble-top-save-ui' );
+            renderTmplUI : function( params ) {
+                  if ( $('#nimble-top-tmpl-save-ui').length > 0 )
+                    return $('#nimble-top-tmpl-save-ui');
 
                   var self = this;
 
                   try {
-                        _tmpl =  wp.template( 'nimble-top-save-ui' )( {} );
+                        _tmpl =  wp.template( 'nimble-top-tmpl-save-ui' )( {} );
                   } catch( er ) {
-                        api.errare( 'Error when parsing the the top note template', er );
+                        api.errare( 'Error when parsing nimble-top-tmpl-save-ui template', er );
                         return false;
                   }
                   $('#customize-preview').after( $( _tmpl ) );
+                  return $('#nimble-top-tmpl-save-ui');
+            },
 
-                  // Attach click events
-                  $('.sek-do-save-section', '#nimble-top-save-ui').on( 'click', function(evt) {
+
+
+            ///////////////////////////////////////////////
+            ///// DOM EVENTS
+            // Fired once, on first rendering
+            scheduleTmplSaveDOMEvents : function() {
+                  var self = this, $tmplDialogWrapper = $('#nimble-top-tmpl-save-ui');
+                  if ( $tmplDialogWrapper.data('nimble-tmpl-dom-events-scheduled') )
+                    return;
+
+                  // ATTACH DOM EVENTS
+                  // Dialog Mode Switcher
+                  $tmplDialogWrapper.on( 'click', '[data-tmpl-mode-switcher]', function(evt) {
                         evt.preventDefault();
-                        var sectionModel = $.extend( true, {}, self.getLevelModel( $('#sek-saved-section-id').val() ) ),
-                            sek_title = $('#sek-saved-section-title').val(),
-                            sek_description = $('#sek-saved-section-description').val(),
-                            sek_id = self.guid(),
-                            sek_data = self.preProcessSektion(sectionModel);
-
-                        if ( _.isEmpty( sek_title ) ) {
-                            $('#sek-saved-section-title').addClass('error');
-                            api.previewer.trigger('sek-notify', {
-                                  type : 'error',
-                                  duration : 10000,
-                                  message : [
-                                        '<span style="font-size:0.95em">',
-                                          '<strong>@missi18n You need to set a title</strong>',
-                                        '</span>'
-                                  ].join('')
-
-                            });
-                            return;
-                        }
-
-                        $('#sek-saved-section-title').removeClass('error');
-
-                        wp.ajax.post( 'sek_save_section', {
-                              nonce: api.settings.nonce.save,
-                              sek_title: sek_title,
-                              sek_description: sek_description,
-                              sek_id: sek_id,
-                              sek_data: JSON.stringify( sek_data )
-                        })
-                        .done( function( response ) {
-                              // response is {section_post_id: 436}
-                              //self.saveUIVisible( false );
-                              api.previewer.trigger('sek-notify', {
-                                  type : 'success',
-                                  duration : 10000,
-                                  message : [
-                                        '<span style="font-size:0.95em">',
-                                          '<strong>@missi18n Your section has been saved.</strong>',
-                                        '</span>'
-                                  ].join('')
-                              });
-                        })
-                        .fail( function( er ) {
-                              api.errorLog( 'ajax sek_save_section => error', er );
-                              api.previewer.trigger('sek-notify', {
-                                  type : 'error',
-                                  duration : 10000,
-                                  message : [
-                                        '<span style="font-size:0.95em">',
-                                          '<strong>@missi18n You need to set a title</strong>',
-                                        '</span>'
-                                  ].join('')
-                              });
-                        });
-                  });//on click
-
-                  $('.sek-cancel-save', '#nimble-top-save-ui').on( 'click', function(evt) {
-                        evt.preventDefault();
-                        self.saveUIVisible(false);
+                        self.tmplDialogMode($(this).data('tmpl-mode-switcher'));
                   });
 
-                  return $( '#nimble-top-save-ui' );
-            }
+                  // React to template select
+                  // update title and description fields on template selection
+                  $tmplDialogWrapper.on( 'change', '.sek-saved-tmpl-picker', function(evt){ self.reactOnTemplateSelection(evt, $(this) ); });
+
+                  // SAVE
+                  $tmplDialogWrapper.on( 'click', '.sek-do-save-tmpl', function(evt){
+                        $tmplDialogWrapper.addClass('nimble-tmpl-processing-ajax');
+                        self.saveOrUpdateTemplate(evt).done( function( response ) {
+                              $tmplDialogWrapper.removeClass('nimble-tmpl-processing-ajax');
+                              if ( response.success ) {
+                                    self.tmplDialogVisible( false );
+                                    self.setSavedTmplCollection( { refresh : true } );// <= true for refresh
+                              }
+                        });
+                  });
+
+                  // UPDATE
+                  $tmplDialogWrapper.on( 'click', '.sek-do-update-tmpl', function(evt){
+                        var $selectEl = $tmplDialogWrapper.find('.sek-saved-tmpl-picker'),
+                            tmplPostNameCandidateForUpdate = $selectEl.val();
+                        // make sure we don't try to remove the default option
+                        if ( 'none' === tmplPostNameCandidateForUpdate || _.isEmpty(tmplPostNameCandidateForUpdate) )
+                          return;
+
+                        $tmplDialogWrapper.addClass('nimble-tmpl-processing-ajax');
+                        self.saveOrUpdateTemplate(evt, tmplPostNameCandidateForUpdate).done( function(response) {
+                              $tmplDialogWrapper.removeClass('nimble-tmpl-processing-ajax');
+                              if ( response.success ) {
+                                    self.tmplDialogVisible( false );
+                                    self.setSavedTmplCollection( { refresh : true } )// <= true for refresh
+                                          .done( function( tmpl_collection ) {
+                                                // refresh tmpl picker in case the user updated without changing anything
+                                                self.refreshTmplPickerHtml();
+                                          });
+                              }
+                        });
+                  });
+
+                  // REMOVE
+                  // Reveal remove dialog
+                  $tmplDialogWrapper.on( 'click', '.sek-open-remove-confirmation', function(evt){
+                        $tmplDialogWrapper.addClass('sek-removal-confirmation-opened');
+                  });
+
+                  // Do Remove
+                  $tmplDialogWrapper.on( 'click', '.sek-do-remove-tmpl', function(evt){
+                        var $selectEl = $tmplDialogWrapper.find('.sek-saved-tmpl-picker'),
+                            tmplPostNameCandidateForRemoval = $selectEl.val();
+                        // make sure we don't try to remove the default option
+                        if ( 'none' === tmplPostNameCandidateForRemoval || _.isEmpty(tmplPostNameCandidateForRemoval) )
+                          return;
+
+                        $tmplDialogWrapper.addClass('nimble-tmpl-processing-ajax');
+                        self.removeTemplate(evt, tmplPostNameCandidateForRemoval).done( function(response) {
+                              $tmplDialogWrapper.removeClass('nimble-tmpl-processing-ajax');
+                              $tmplDialogWrapper.removeClass('sek-removal-confirmation-opened');
+                              if ( response.success ) {
+                                    self.setSavedTmplCollection( { refresh : true } );// <= true for refresh
+                              }
+                        });
+                  });
+
+                  // Cancel Remove
+                  $tmplDialogWrapper.on( 'click', '.sek-cancel-remove-tmpl', function(evt){
+                        $tmplDialogWrapper.removeClass('sek-removal-confirmation-opened');
+                  });
+
+
+                  // Switch to update mode
+                  //$tmplDialogWrapper.on( 'click', '[data-tmpl-mode-switcher="update"]', function(evt){  });
+
+                  $('.sek-close-dialog', $tmplDialogWrapper ).on( 'click', function(evt) {
+                        evt.preventDefault();
+                        self.tmplDialogVisible(false);
+                  });
+
+                  // Say we're done with DOM event scheduling
+                  $tmplDialogWrapper.data('nimble-tmpl-dom-events-scheduled', true );
+            },
+
+
+
+            // Is used in update and remove modes
+            reactOnTemplateSelection : function(evt, $selectEl ){
+                  var self = this,
+                      $tmplDialogWrapper = $('#nimble-top-tmpl-save-ui'),
+                      _tmplPostName = $selectEl.val(),
+                      $titleInput = $tmplDialogWrapper.find('#sek-saved-tmpl-title'),
+                      $descInput = $tmplDialogWrapper.find('#sek-saved-tmpl-description'),
+                      // The informative class control the visibility of the title and the description in CSS
+                      _informativeClass = 'update' === self.tmplDialogMode() ? 'sek-tmpl-update-selected' : 'sek-tmpl-remove-selected';
+
+                  if ( 'none' === _tmplPostName ) {
+                        $titleInput.val('');
+                        $descInput.val('');
+                        $tmplDialogWrapper.removeClass(_informativeClass);
+                  } else {
+                        var _allSavedTemplates = self.allSavedTemplates();
+                        var _selectedTmpl = _tmplPostName;
+
+                        // normalize
+                        _allSavedTemplates = ( _.isObject(_allSavedTemplates) && !_.isArray(_allSavedTemplates) ) ? _allSavedTemplates : {};
+                        _allSavedTemplates[_tmplPostName] = $.extend( {
+                            title : '',
+                            description : '',
+                            last_modified_date : ''
+                        }, _allSavedTemplates[_tmplPostName] || {} );
+
+                        $titleInput.val( _allSavedTemplates[_tmplPostName].title );
+                        $descInput.val( _allSavedTemplates[_tmplPostName].description );
+                        $tmplDialogWrapper.addClass(_informativeClass);
+                  }
+            },
+
+
+
+
+            ///////////////////////////////////////////////
+            ///// AJAX ACTIONS
+            // Fired on 'click' on .sek-do-save-tmpl btn
+            saveOrUpdateTemplate : function(evt, tmplPostNameCandidateForUpdate ) {
+                  var self = this, _dfd_ = $.Deferred();
+                  evt.preventDefault();
+                  var $_title = $('#sek-saved-tmpl-title'),
+                      tmpl_title = $_title.val(),
+                      tmpl_description = $('#sek-saved-tmpl-description').val(),
+                      collectionSettingId = self.localSectionsSettingId(),
+                      currentLocalSettingValue = self.preProcessTmpl( api( collectionSettingId )() );
+
+                  if ( _.isEmpty( tmpl_title ) ) {
+                        $_title.addClass('error');
+                        api.previewer.trigger('sek-notify', {
+                              type : 'error',
+                              duration : 10000,
+                              message : [
+                                    '<span style="font-size:0.95em">',
+                                      '<strong>' + sektionsLocalizedData.i18n['A title is required'] + '</strong>',
+                                    '</span>'
+                              ].join('')
+
+                        });
+                        return _dfd_.resolve( {success:false});
+                  }
+
+                  $('#sek-saved-tmpl-title').removeClass('error');
+
+                  wp.ajax.post( 'sek_save_user_template', {
+                        nonce: api.settings.nonce.save,
+                        tmpl_data: JSON.stringify( currentLocalSettingValue ),
+                        // the following will be saved in 'metas'
+                        tmpl_title: tmpl_title,
+                        tmpl_description: tmpl_description,
+                        tmpl_post_name: tmplPostNameCandidateForUpdate || '',// <= provided when updating a template
+                        skope_id: api.czr_skopeBase.getSkopeProperty( 'skope_id' ),
+                        active_locations : api.czr_sektions.activeLocations()
+                  })
+                  .done( function( response ) {
+                        //console.log('SAVED POST ID', response );
+                        _dfd_.resolve( {success:true});
+                        // response is {tmpl_post_id: 436}
+                        api.previewer.trigger('sek-notify', {
+                            type : 'success',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Template saved'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  })
+                  .fail( function( er ) {
+                        _dfd_.resolve( {success:false});
+                        api.errorLog( 'ajax sek_save_template => error', er );
+                        api.previewer.trigger('sek-notify', {
+                            type : 'error',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Error when processing template'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  });
+                  return _dfd_;
+            },//saveOrUpdateTemplate
+
+
+
+            // Fired on 'click on .sek-do-remove-tmpl btn
+            removeTemplate : function(evt, tmplPostNameCandidateForRemoval ) {
+                  var self = this, _dfd_ = $.Deferred();
+                  evt.preventDefault();
+                  wp.ajax.post( 'sek_remove_user_template', {
+                        nonce: api.settings.nonce.save,
+                        tmpl_post_name: tmplPostNameCandidateForRemoval
+                        //skope_id: api.czr_skopeBase.getSkopeProperty( 'skope_id' )
+                  })
+                  .done( function( response ) {
+                        _dfd_.resolve( {success:true});
+                        // response is {tmpl_post_id: 436}
+                        api.previewer.trigger('sek-notify', {
+                            type : 'success',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Template removed'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  })
+                  .fail( function( er ) {
+                        _dfd_.resolve( {success:false});
+                        api.errorLog( 'ajax sek_remove_template => error', er );
+                        api.previewer.trigger('sek-notify', {
+                            type : 'error',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Error when processing templates'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  });
+
+                  return _dfd_;
+            },
+
+
+
+
+            ///////////////////////////////////////////////
+            ///// REVEAL / HIDE DIALOG BOX
+            /// react on self.tmplDialogVisible.bind(...)
+            // @return void()
+            // self.tmplDialogVisible.bind( function( visible ){
+            //       self.toggleSaveTmplUI( visible );
+            // });
+            toggleSaveTmplUI : function( visible ) {
+                  visible = _.isUndefined( visible ) ? true : visible;
+                  var self = this,
+                      _renderAndSetup = function() {
+                            $.when( self.renderTmplUI({}) ).done( function( $_el ) {
+                                  self.scheduleTmplSaveDOMEvents();
+                                  self.saveUIContainer = $_el;
+                                  //display
+                                  _.delay( function() {
+                                        // set dialog mode now so we display the relevant fields on init
+                                        self.tmplDialogMode('save');// Default mode is save
+                                        self.cachedElements.$body.addClass('sek-save-tmpl-ui-visible');
+                                  }, 200 );
+                                  // set tmpl id input value
+                                  //$('#sek-saved-tmpl-id').val( tmplId );
+                            });
+                      },
+                      _hide = function() {
+                            var dfd = $.Deferred();
+                            self.cachedElements.$body.removeClass('sek-save-tmpl-ui-visible');
+                            if ( $( '#nimble-top-tmpl-save-ui' ).length > 0 ) {
+                                  //remove Dom element after slide up
+                                  _.delay( function() {
+                                        // set dialog mode back to 'hidden' mode
+                                        self.tmplDialogMode = self.tmplDialogMode ? self.tmplDialogMode : new api.Value();
+                                        self.tmplDialogMode('hidden');
+                                        self.saveUIContainer.remove();
+                                        dfd.resolve();
+                                  }, 250 );
+                            } else {
+                                dfd.resolve();
+                            }
+                            return dfd.promise();
+                      };
+
+                  if ( visible ) {
+                        _renderAndSetup();
+                  } else {
+                        _hide().done( function() {
+                              self.tmplDialogVisible( false );//should be already false
+                        });
+                  }
+            },
+
+
+
+
+            ///////////////////////////////////////////////
+            ///// TMPL COLLECTION
+            // @return $.promise
+            setSavedTmplCollection : function( params ) {
+                  var self = this, _dfd_ = $.Deferred();
+
+                  // refresh is true on save, update, remove success
+                  params = params || {refresh : false};
+
+                  // If the collection is already set, return it.
+                  // unless this is a "refresh" case
+                  if ( !params.refresh && '_not_populated_' !== self.allSavedTemplates() ) {
+                        return _dfd_.resolve( self.allSavedTemplates() );
+                  }
+
+                  var _promise;
+                  // Prevent a double request while ajax request is being processed
+                  if ( self.templateCollectionPromise && 'pending' === self.templateCollectionPromise.state() ) {
+                        _promise = self.templateCollectionPromise;
+                  } else {
+                        _promise = self.getSavedTmplCollection();
+                  }
+                  _promise.done( function( tmpl_collection ) {
+                        self.allSavedTemplates( tmpl_collection );
+                        _dfd_.resolve( tmpl_collection );
+                  });
+                  return _dfd_.promise();
+            },
+
+            // @return a promise
+            getSavedTmplCollection : function() {
+                  var self = this;
+                  self.templateCollectionPromise = $.Deferred();
+
+                  wp.ajax.post( 'sek_get_all_saved_tmpl', {
+                        nonce: api.settings.nonce.save
+                        //skope_id: api.czr_skopeBase.getSkopeProperty( 'skope_id' )
+                  })
+                  .done( function( tmpl_collection ) {
+                        if ( _.isObject(tmpl_collection) && !_.isArray( tmpl_collection ) ) {
+                              self.templateCollectionPromise.resolve( tmpl_collection );
+                        } else {
+                              self.templateCollectionPromise.resolve( {} );
+                              api.errare('control::getSavedTmplCollection => error => tmpl collection is invalid');
+                        }
+
+                        // response is {tmpl_post_id: 436}
+                        //self.tmplDialogVisible( false );
+                        // api.previewer.trigger('sek-notify', {
+                        //     type : 'success',
+                        //     duration : 10000,
+                        //     message : [
+                        //           '<span style="font-size:0.95em">',
+                        //             '<strong>@missi18n Your template has been saved.</strong>',
+                        //           '</span>'
+                        //     ].join('')
+                        // });
+                  })
+                  .fail( function( er ) {
+                        api.errorLog( 'ajax sek_get_all_saved_tmpl => error', er );
+                        api.previewer.trigger('sek-notify', {
+                            type : 'error',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>' + sektionsLocalizedData.i18n['Error when processing templates'] + '</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                        self.templateCollectionPromise.resolve({});
+                  });
+
+                  return self.templateCollectionPromise;
+            },
+
+            // @return a tmpl model with clean ids
+            // also removes the tmpl properties "id" and "level", which are dynamically set when dragging and dropping
+            // Example of tmpl model before preprocessing
+            // {
+            //    collection: [{…}]
+            //    id: "" //<= to remove
+            //    level: "tmpl" // <= to remove
+            //    options: {bg: {…}}
+            //    ver_ini: "1.1.8"
+            // }
+            preProcessTmpl : function( tmpl_data ) {
+                  console.log('TO DO => make sure template is ok to be saved');
+                  return tmpl_data;
+            },
       });//$.extend()
 })( wp.customize, jQuery );
 //global sektionsLocalizedData
@@ -3101,9 +4107,11 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                   });
                             },
 
+                            // Updated June 2020 for https://github.com/presscustomizr/nimble-builder/issues/520
                             'sek-toggle-save-section-ui' : function( params ) {
                                   sendToPreview = false;
-                                  self.saveUIVisible( true, params );
+                                  self.idOfSectionToSave = params.id;
+                                  self.saveSectionDialogVisible( true );
                                   return $.Deferred(function(_dfd_) {
                                         apiParams = {
                                               // action : 'sek-refresh-level',
@@ -3160,6 +4168,13 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                               } else {
                                    api.errare( '::reactToPreviewMsg => invalid callback for action ' + msgId );
                                    return;
+                              }
+
+                              // Close template gallery, template saver
+                              // do nothing when we notify
+                              if ( 'sek-notify' !== msgId ) {
+                                  self.templateGalleryExpanded(false);
+                                  self.tmplDialogVisible(false);
                               }
 
                               try { _cb_( params )
@@ -3397,7 +4412,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
             // 1) mono-items and multi-items module => input change
             // 2) crud multi item => item added or removed => in this case some args are not passed, like params.settingParams.args.inputRegistrationParams
             updateAPISettingAndExecutePreviewActions : function( params ) {
-                  if ( _.isEmpty( params.settingParams ) || ! _.has( params.settingParams, 'to' ) ) {
+                  if ( _.isEmpty( params.settingParams ) || !_.has( params.settingParams, 'to' ) ) {
                         api.errare( 'updateAPISettingAndExecutePreviewActions => missing params.settingParams.to. The api main setting can not be updated', params );
                         return;
                   }
@@ -3411,7 +4426,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                       parentModuleType = null,
                       isMultiItemModule = false;
 
-                  if ( _.isEmpty( params.settingParams.args ) || ! _.has( params.settingParams.args, 'moduleRegistrationParams' ) ) {
+                  if ( _.isEmpty( params.settingParams.args ) || !_.has( params.settingParams.args, 'moduleRegistrationParams' ) ) {
                         api.errare( 'updateAPISettingAndExecutePreviewActions => missing params.settingParams.args.moduleRegistrationParams The api main setting can not be updated', params );
                         return;
                   }
@@ -3420,7 +4435,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                       _module_id_ = params.settingParams.args.moduleRegistrationParams.id,
                       parentModuleInstance = _ctrl_.czr_Module( _module_id_ );
 
-                  if ( ! _.isEmpty( parentModuleInstance ) ) {
+                  if ( !_.isEmpty( parentModuleInstance ) ) {
                         parentModuleType = parentModuleInstance.module_type;
                         isMultiItemModule = parentModuleInstance.isMultiItem();
                   } else {
@@ -3431,7 +4446,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
 
                   // The new module value can be a single item object if monoitem module, or an array of item objects if multi-item crud
                   // Let's normalize it
-                  if ( ! isMultiItemModule && _.isObject( rawModuleValue ) ) {
+                  if ( !isMultiItemModule && _.isObject( rawModuleValue ) ) {
                         moduleValueCandidate = self.normalizeAndSanitizeSingleItemInputValues( {
                               item_value : rawModuleValue,
                               parent_module_type : parentModuleType,
@@ -3472,22 +4487,22 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                         return inputRegistrationParams && _.isString( inputRegistrationParams.refresh_markup ) && 'true' !== inputRegistrationParams.refresh_markup && 'false' !== inputRegistrationParams.refresh_markup;
                   };
 
-                  if ( ! _.isUndefined( input_id ) ) {
+                  if ( !_.isUndefined( input_id ) ) {
                         inputRegistrationParams = self.getInputRegistrationParams( input_id, parentModuleType );
-                        if ( ! _.isUndefined( inputRegistrationParams.refresh_stylesheet ) ) {
+                        if ( !_.isUndefined( inputRegistrationParams.refresh_stylesheet ) ) {
                               refresh_stylesheet = Boolean( inputRegistrationParams.refresh_stylesheet );
                         }
-                        if ( ! _.isUndefined( inputRegistrationParams.refresh_markup ) ) {
+                        if ( !_.isUndefined( inputRegistrationParams.refresh_markup ) ) {
                               if ( refreshMarkupWhenNeededForInput() ) {
                                     refresh_markup = inputRegistrationParams.refresh_markup;
                               } else {
                                     refresh_markup = Boolean( inputRegistrationParams.refresh_markup );
                               }
                         }
-                        if ( ! _.isUndefined( inputRegistrationParams.refresh_fonts ) ) {
+                        if ( !_.isUndefined( inputRegistrationParams.refresh_fonts ) ) {
                               refresh_fonts = Boolean( inputRegistrationParams.refresh_fonts );
                         }
-                        if ( ! _.isUndefined( inputRegistrationParams.refresh_preview ) ) {
+                        if ( !_.isUndefined( inputRegistrationParams.refresh_preview ) ) {
                               refresh_preview = Boolean( inputRegistrationParams.refresh_preview );
                         }
                   }
@@ -3509,7 +4524,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                               _.each( moduleValueCandidate || {}, function( _val_, _key_ ) {
                                     // Note : _.isEmpty( 5 ) returns true when checking an integer,
                                     // that's why we need to cast the _val_ to a string when using _.isEmpty()
-                                    if ( ! _.isBoolean( _val_ ) && _.isEmpty( _val_ + "" ) )
+                                    if ( !_.isBoolean( _val_ ) && _.isEmpty( _val_ + "" ) )
                                       return;
                                     _valueCandidate[ _key_ ] = _val_;
                               });
@@ -3528,7 +4543,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                               // So that the .fonts collection is ready server side
                               if ( true === refresh_fonts ) {
                                     var newFontFamily = params.settingParams.args.input_value;
-                                    if ( ! _.isString( newFontFamily ) ) {
+                                    if ( !_.isString( newFontFamily ) ) {
                                           api.errare( 'updateAPISettingAndExecutePreviewActions => font-family must be a string', newFontFamily );
                                           return;
                                     }
@@ -3606,10 +4621,12 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                     if ( refreshMarkupWhenNeededForInput() ) {
 
                                           var _html_content = params.settingParams.args.input_value;
-                                          if ( ! _.isString( _html_content ) ) {
+                                          if ( !_.isString( _html_content ) ) {
                                                 throw new Error( '::updateAPISettingAndExecutePreviewActions => _doUpdateWithRequestedAction => refreshMarkupWhenNeededForInput => html content is not a string.');
                                           }
-                                          if ( ! self.htmlIncludesShortcodesOrTmplTags( _html_content ) ) {
+
+                                          // Like shortcode tags, template tags, script tags
+                                          if ( !self.htmlIncludesElementsThatNeedAnAjaxRefresh( _html_content ) ) {
                                                 api.previewer.send( 'sek-update-html-in-selector', {
                                                       selector : inputRegistrationParams.refresh_markup,
                                                       changed_item_id : _changed_item_id,
@@ -3647,7 +4664,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   // this way we make sure that the customized value used when ajaxing will be taken into account when writing the google font http request link
                   if ( true === refresh_fonts ) {
                         var newFontFamily = params.settingParams.args.input_value;
-                        if ( ! _.isString( newFontFamily ) ) {
+                        if ( !_.isString( newFontFamily ) ) {
                               api.errare( 'updateAPISettingAndExecutePreviewActions => font-family must be a string', newFontFamily );
                               return;
                         }
@@ -3696,8 +4713,8 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   var currentGfonts = self.sniffGlobalGFonts( clonedGlobalOptions );
 
                   // add it only if gfont
-                  if ( ! _.isEmpty( newFontFamily ) && _.isString( newFontFamily ) ) {
-                        if ( newFontFamily.indexOf('gfont') > -1 && ! _.contains( currentGfonts, newFontFamily ) ) {
+                  if ( !_.isEmpty( newFontFamily ) && _.isString( newFontFamily ) ) {
+                        if ( newFontFamily.indexOf('gfont') > -1 && !_.contains( currentGfonts, newFontFamily ) ) {
                               currentGfonts.push( newFontFamily );
                         }
                   }
@@ -3723,7 +4740,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                 return;
                               // example of input_id candidate 'font_family_css'
                               if ( _.isString( _key_ ) && _key_.indexOf('font_family') > -1 ) {
-                                    if ( levelData.indexOf('gfont') > -1 && ! _.contains( gfonts, levelData ) ) {
+                                    if ( levelData.indexOf('gfont') > -1 && !_.contains( gfonts, levelData ) ) {
                                           gfonts.push( levelData );
                                     }
                               }
@@ -3787,7 +4804,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   _.each( params.item_value, function( _val, input_id ) {
                         if ( 'title' === input_id )
                           return;
-                        if ( ! params.is_multi_items && 'id' === input_id )
+                        if ( !params.is_multi_items && 'id' === input_id )
                           return;
 
                         if ( null !== params.parent_module_type ) {
@@ -3896,9 +4913,11 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
              *
              * @param {string} content The content we want to scan for shortcodes.
              */
-            htmlIncludesShortcodesOrTmplTags : function( content ) {
+            htmlIncludesElementsThatNeedAnAjaxRefresh : function( content ) {
                   var shortcodes = content.match( /\[+([\w_-])+/g ),
                       tmpl_tags = content.match( /\{\{+([\w_-])+/g ),
+                      // script detection introduced for https://github.com/presscustomizr/nimble-builder/issues/710
+                      script_tags = content.match( /<script[\s\S]*?>[\s\S]*?<\/script>/gi ),
                       shortcode_result = [],
                       tmpl_tag_result = [];
 
@@ -3920,7 +4939,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                       }
                     }
                   }
-                  return !_.isEmpty( shortcode_result ) || !_.isEmpty( tmpl_tag_result );
+                  return !_.isEmpty( shortcode_result ) || !_.isEmpty( tmpl_tag_result ) || !_.isEmpty( script_tags );
             }
       });//$.extend()
 })( wp.customize, jQuery );//global sektionsLocalizedData
@@ -3962,6 +4981,21 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                               icon : '<i class="fas fa-grip-vertical sek-level-option-icon"></i>'
                         },
 
+                        // June 2020 for : https://github.com/presscustomizr/nimble-builder/issues/520
+                        // and https://github.com/presscustomizr/nimble-builder/issues/713
+                        sek_my_sections_sec_picker_module : {
+                              settingControlId : sektionsLocalizedData.optPrefixForSektionsNotSaved + self.guid() + '_sek_draggable_sections_ui',
+                              module_type : 'sek_my_sections_sec_picker_module',
+                              controlLabel :  sektionsLocalizedData.i18n['My sections'],
+                              content_type : 'section',
+                              expandAndFocusOnInit : false,
+                              priority : 10,
+                              icon : '<i class="fas fa-grip-vertical sek-level-option-icon"></i>',
+                              is_new : true
+                        },
+
+                        // Preset sections
+                        // to understand how those sections are registered server side, see @see https://github.com/presscustomizr/nimble-builder/issues/713
                         sek_intro_sec_picker_module : {
                               settingControlId : sektionsLocalizedData.optPrefixForSektionsNotSaved + self.guid() + '_sek_draggable_sections_ui',
                               module_type : 'sek_intro_sec_picker_module',
@@ -4027,26 +5061,12 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                               priority : 30,
                               icon : '<i class="fas fa-grip-vertical sek-level-option-icon"></i>'
                         }
-                  });
+                  });//$.extend( registrationParams, { });
 
                   // Beta features to merge here ?
                   // if ( sektionsLocalizedData.areBetaFeaturesEnabled ) {
                   //       $.extend( registrationParams, {});
                   // }
-
-                  if ( sektionsLocalizedData.isSavedSectionEnabled ) {
-                        $.extend( registrationParams, {
-                              sek_my_sections_sec_picker_module : {
-                                    settingControlId : sektionsLocalizedData.optPrefixForSektionsNotSaved + self.guid() + '_sek_draggable_sections_ui',
-                                    module_type : 'sek_my_sections_sec_picker_module',
-                                    controlLabel :  '@missi18n My sections',
-                                    content_type : 'section',
-                                    expandAndFocusOnInit : false,
-                                    priority : 10,
-                                    icon : '<i class="fas fa-grip-vertical sek-level-option-icon"></i>'
-                              }
-                        });
-                  }
 
 
                   // BAIL WITH A SEE-ME ANIMATION IF THIS UI IS CURRENTLY BEING DISPLAYED
@@ -4125,16 +5145,20 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
 
                                           var $title = _control_.container.find('label > .customize-control-title'),
                                               _titleContent = $title.html();
+
                                           // We wrap the original text content in this span.sek-ctrl-accordion-title in order to style it (underlined) independently ( without styling the icons next to it )
                                           $title.html( ['<span class="sek-ctrl-accordion-title">', _titleContent, '</span>' ].join('') );
 
+                                          if ( optionData.is_new ) {
+                                                var _titleHtml = $title.html();
+                                                $title.html( _titleHtml + ' <span class="sek-new-label">New!</span>' );
+                                          }
                                           // if this level has an icon, let's prepend it to the title
                                           if ( ! _.isUndefined( optionData.icon ) ) {
                                                 $title.addClass('sek-flex-vertical-center').prepend( optionData.icon );
                                           }
 
                                           // ACCORDION
-
                                           // Setup the accordion only for section content type
                                           if ( 'section' === _control_.content_type ) {
                                                 // Hide the item wrapper
@@ -5748,8 +6772,10 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                           // start from a deep cloned object
                                           // important => fixes https://github.com/presscustomizr/nimble-builder/issues/455
                                           var _new_options_values = $.extend( true, {}, _candidate_.options || {} );
-
-                                          _new_options_values.width = _.isObject( _new_options_values.width ) ? _new_options_values.width : {};
+                                          // april 2020 : due to a previous implementation of width option as an array, there could be a bug when trying to set the width
+                                          // because the check on _.isObject() was true for an array
+                                          // Fixes https://github.com/presscustomizr/nimble-builder/issues/620
+                                          _new_options_values.width = ( _.isObject( _new_options_values.width ) && _new_options_values.width['custom-width'] ) ? _new_options_values.width : {};
                                           _new_options_values.width['custom-width'] = newWidthValue;
                                           _candidate_.options = _new_options_values;
 
@@ -5757,11 +6783,8 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                           self.cachedElements.$body.find('[data-sek-width-range-column-id="'+ _candidate_.id +'"]').val( newWidthValue ).trigger('input', { is_resize_column_trigger : true } );
                                           return newWidthValue;
                                     };
-                                    ///
-
 
                                     // DEPRECATED SINCE JUNE 2019 => resizedColumn.width = parseFloat( params.resizedColumnWidthInPercent );
-
                                     var resizedColumnWidthInPercent = _setColumnWidth( resizedColumn, parseFloat( params.resizedColumnWidthInPercent ) );
                                     // cast to number
                                     resizedColumnWidthInPercent = parseFloat( resizedColumnWidthInPercent );
@@ -6324,7 +7347,6 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                                             });// self.preparePresetSectionForInjection.done()
                                                 };//_doWhenPresetSectionCollectionFetched()
 
-
                                                 // Try to fetch the sections from the server
                                                 // if sucessfull, resolve __presetSectionInjected__.promise()
                                                 self.getPresetSectionCollection({
@@ -6343,6 +7365,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                                             // OK. time to resolve __presetSectionInjected__.promise()
                                                             _doWhenPresetSectionCollectionFetched( presetColumnOrSectionCollection );
                                                       });//self.getPresetSectionCollection().done()
+
                                           break;//case 'preset_section' :
                                     }//switch( params.content_type)
                               break;
@@ -6741,57 +7764,27 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
             // @return a promise()
             // caches the sections in api.sek_presetSections when api.section( '__content_picker__') is registered
             // caches the user saved sections on the first drag and drop of a user-saved section
-            // @params {
-            //  is_user_section : sectionParams.is_user_section
-            //  preset_section_id : '' <= used for user_saved section
-            // }
-            _maybeFetchSectionsFromServer : function( params ) {
+            _maybeFetchSectionsFromServer : function() {
                   var dfd = $.Deferred(),
                       _ajaxRequest_;
 
-                  params = params || { is_user_section : false };
-                  if ( true === params.is_user_section ) {
-                        if ( ! _.isEmpty( api.sek_userSavedSections ) && ! _.isEmpty( api.sek_userSavedSections[ params.preset_section_id ] ) ) {
-                              dfd.resolve( api.sek_userSavedSections );
-                        } else {
-                              api.sek_userSavedSections = api.sek_userSavedSections || {};
-                              if ( ! _.isUndefined( api.sek_fetchingUserSavedSections ) && 'pending' == api.sek_fetchingUserSavedSections.state() ) {
-                                    _ajaxRequest_ = api.sek_fetchingUserSavedSections;
-                              } else {
-                                    _ajaxRequest_ = wp.ajax.post( 'sek_get_user_saved_sections', {
-                                          nonce: api.settings.nonce.save,
-                                          preset_section_id : params.preset_section_id
-                                    });
-                                    api.sek_fetchingUserSavedSections = _ajaxRequest_;
-                              }
-                              _ajaxRequest_.done( function( _sectionData_ ) {
-                                    //api.sek_presetSections = JSON.parse( _collection_ );
-                                    api.sek_userSavedSections[ params.preset_section_id ] = _sectionData_;
-                                    dfd.resolve( api.sek_userSavedSections );
-                              }).fail( function( _r_ ) {
-                                    dfd.reject( _r_ );
-                              });
-                        }
+                  if ( ! _.isEmpty( api.sek_presetSections ) ) {
+                        dfd.resolve( api.sek_presetSections );
                   } else {
-                        if ( ! _.isEmpty( api.sek_presetSections ) ) {
-                              dfd.resolve( api.sek_presetSections );
+                        if ( ! _.isUndefined( api.sek_fetchingPresetSections ) && 'pending' == api.sek_fetchingPresetSections.state() ) {
+                              _ajaxRequest_ = api.sek_fetchingPresetSections;
                         } else {
-                              if ( ! _.isUndefined( api.sek_fetchingPresetSections ) && 'pending' == api.sek_fetchingPresetSections.state() ) {
-                                    _ajaxRequest_ = api.sek_fetchingPresetSections;
-                              } else {
-                                    _ajaxRequest_ = wp.ajax.post( 'sek_get_preset_sections', { nonce: api.settings.nonce.save } );
-                                    api.sek_fetchingPresetSections = _ajaxRequest_;
-                              }
-                              _ajaxRequest_.done( function( _collection_ ) {
-                                    //api.sek_presetSections = JSON.parse( _collection_ );
-                                    api.sek_presetSections = _collection_;
-                                    dfd.resolve( api.sek_presetSections );
-                              }).fail( function( _r_ ) {
-                                    dfd.reject( _r_ );
-                              });
+                              _ajaxRequest_ = wp.ajax.post( 'sek_get_preset_sections', { nonce: api.settings.nonce.save } );
+                              api.sek_fetchingPresetSections = _ajaxRequest_;
                         }
+                        _ajaxRequest_.done( function( _collection_ ) {
+                              //api.sek_presetSections = JSON.parse( _collection_ );
+                              api.sek_presetSections = _collection_;
+                              dfd.resolve( api.sek_presetSections );
+                        }).fail( function( _r_ ) {
+                              dfd.reject( _r_ );
+                        });
                   }
-
                   return dfd.promise();
             },
 
@@ -6812,68 +7805,111 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
             getPresetSectionCollection : function( sectionParams ) {
                   var self = this,
                       __dfd__ = $.Deferred();
-
-                  self._maybeFetchSectionsFromServer({
-                        is_user_section : sectionParams.is_user_section,
-                        preset_section_id : sectionParams.presetSectionId
-                  })
-                        .fail( function( er ) {
-                              __dfd__.reject( er );
+                  if ( sectionParams.is_user_section ) {
+                        wp.ajax.post( 'sek_get_user_section_json', {
+                              nonce: api.settings.nonce.save,
+                              section_post_name: sectionParams.presetSectionId
+                              //skope_id: api.czr_skopeBase.getSkopeProperty( 'skope_id' )
                         })
-                        .done( function( _collection_ ) {
-                              //api.infoLog( 'preset_sections fetched', api.sek_presetSections );
-                              var presetSection,
-                                  allPresets = $.extend( true, {}, _.isObject( _collection_ ) ? _collection_ : {} );
-
-                              if ( _.isEmpty( allPresets ) ) {
-                                    throw new Error( 'getPresetSectionCollection => Invalid collection');
-                              }
-                              if ( _.isEmpty( allPresets[ sectionParams.presetSectionId ] ) ) {
-                                    throw new Error( 'getPresetSectionCollection => the preset section : "' + sectionParams.presetSectionId + '" has not been found in the collection');
-                              }
-                              var presetCandidate = allPresets[ sectionParams.presetSectionId ];
-
-                              // Ensure we have a string that's JSON.parse-able
-                              // if ( typeof presetCandidate !== 'string' || presetCandidate[0] !== '{' ) {
-                              //       throw new Error( 'getPresetSectionCollection => ' + sectionParams.presetSectionId + ' is not JSON.parse-able');
+                        .done( function( userSection ) {
+                              // User section looks like
+                              // {
+                              //  data : {}
+                              //  metas : {}
+                              //  section_post_name : ''
                               // }
-                              // presetCandidate = JSON.parse( presetCandidate );
+                              if ( ! _.isObject( userSection ) || _.isEmpty( userSection ) || _.isUndefined( userSection.data ) ) {
+                                    api.errare( 'getPresetSectionCollection => preset section type not found or empty : ' + sectionParams.presetSectionId, userSection );
+                                    throw new Error( 'getPresetSectionCollection => preset section type not found or empty');
+                              }
 
-                              var setIds = function( collection ) {
-                                    _.each( collection, function( levelData ) {
-                                          levelData.id = sektionsLocalizedData.optPrefixForSektionsNotSaved + self.guid();
-                                          if ( _.isArray( levelData.collection ) ) {
-                                                setIds( levelData.collection );
-                                          }
-                                    });
-                                    return collection;
-                              };
-
-                              var setVersion = function( collection ) {
-                                    _.each( collection, function( levelData ) {
-                                          levelData.ver_ini = sektionsLocalizedData.nimbleVersion;
-                                          if ( _.isArray( levelData.collection ) ) {
-                                                setVersion( levelData.collection );
-                                          }
-                                    });
-                                    return collection;
-                              };
+                              var userSectionCandidate = $.extend( {}, true, userSection.data );
 
                               // ID's
                               // the level's id have to be generated
-                              presetCandidate.collection = setIds( presetCandidate.collection );
+                              // 1) root level
+                              userSectionCandidate.id = sektionsLocalizedData.optPrefixForSektionsNotSaved + self.guid();
+                              // 2) children levels
+                              userSectionCandidate.collection = self.setPresetOrUserSectionIds( userSectionCandidate.collection );
 
                               // NIMBLE VERSION
                               // set the section version
-                              presetCandidate.ver_ini = sektionsLocalizedData.nimbleVersion;
+                              userSectionCandidate.ver_ini = sektionsLocalizedData.nimbleVersion;
                               // the other level's version have to be added
-                              presetCandidate.collection = setVersion( presetCandidate.collection );
-                              __dfd__.resolve( presetCandidate );
-                        });//_maybeFetchSectionsFromServer.done()
+                              userSectionCandidate.collection = self.setPresetSectionVersion( userSectionCandidate.collection );
 
+                              // OK. time to resolve __presetSectionInjected__.promise()
+                              __dfd__.resolve( userSectionCandidate );
+                        })
+                        .fail( function( er ) {
+                               __dfd__.reject( er );
+                        });
+                  } else {
+                        self._maybeFetchSectionsFromServer()
+                              .fail( function( er ) {
+                                    __dfd__.reject( er );
+                              })
+                              .done( function( _collection_ ) {
+                                    //api.infoLog( 'preset_sections fetched', api.sek_presetSections );
+                                    var presetSection,
+                                        allPresets = $.extend( true, {}, _.isObject( _collection_ ) ? _collection_ : {} );
+
+                                    if ( _.isEmpty( allPresets ) ) {
+                                          throw new Error( 'getPresetSectionCollection => Invalid collection');
+                                    }
+                                    if ( _.isEmpty( allPresets[ sectionParams.presetSectionId ] ) ) {
+                                          throw new Error( 'getPresetSectionCollection => the preset section : "' + sectionParams.presetSectionId + '" has not been found in the collection');
+                                    }
+                                    var presetCandidate = allPresets[ sectionParams.presetSectionId ];
+
+                                    // Ensure we have a string that's JSON.parse-able
+                                    // if ( typeof presetCandidate !== 'string' || presetCandidate[0] !== '{' ) {
+                                    //       throw new Error( 'getPresetSectionCollection => ' + sectionParams.presetSectionId + ' is not JSON.parse-able');
+                                    // }
+                                    // presetCandidate = JSON.parse( presetCandidate );
+
+                                    // ID's
+                                    // the level's id have to be generated
+                                    presetCandidate.collection = self.setPresetOrUserSectionIds( presetCandidate.collection );
+
+                                    // NIMBLE VERSION
+                                    // set the section version
+                                    presetCandidate.ver_ini = sektionsLocalizedData.nimbleVersion;
+                                    // the other level's version have to be added
+                                    presetCandidate.collection = self.setPresetSectionVersion( presetCandidate.collection );
+                                    __dfd__.resolve( presetCandidate );
+                              });//_maybeFetchSectionsFromServer.done()
+                  }
                   return __dfd__.promise();
             },
 
+
+            // SECTION HELPERS
+            // Replaces __rep__me__ by an id looking like __nimble__1eda909f0cfe
+            setPresetOrUserSectionIds : function( collection ) {
+                  var self = this;
+                  // Only collection set as arrays hold columns or modules
+                  if ( _.isArray( collection ) ) {
+                        _.each( collection, function( levelData ) {
+                              levelData.id = sektionsLocalizedData.optPrefixForSektionsNotSaved + self.guid();
+                              if ( _.isArray( levelData.collection ) ) {
+                                    self.setPresetOrUserSectionIds( levelData.collection );
+                              }
+                        });
+                  }
+                  return collection;
+            },
+
+            setPresetSectionVersion : function( collection ) {
+                  var self = this;
+                  _.each( collection, function( levelData ) {
+                        levelData.ver_ini = sektionsLocalizedData.nimbleVersion;
+                        if ( _.isArray( levelData.collection ) ) {
+                              self.setPresetSectionVersion( levelData.collection );
+                        }
+                  });
+                  return collection;
+            },
 
 
 
@@ -8347,12 +9383,12 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                     before_section : $dropTarget.data('drop-zone-before-section'),
                                     after_section : $dropTarget.data('drop-zone-after-section'),
 
-                                    content_type : $(this).data('sek-content-type'),
-                                    content_id : $(this).data('sek-content-id'),
+                                    content_type : $(this).attr('data-sek-content-type'),
+                                    content_id : $(this).attr('data-sek-content-id'),
 
-                                    section_type : $(this).data('sek-section-type'),
+                                    section_type : $(this).attr('data-sek-section-type'),
                                     // Saved sections
-                                    is_user_section : "true" === $(this).data('sek-is-user-section')
+                                    is_user_section : "true" === $(this).attr('data-sek-is-user-section')
                               });
                               // And reset the preview target
                               self.lastClickedTargetInPreview({});
@@ -8672,10 +9708,14 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   if ( ! $dropTarget.hasClass('sek-drop-zone') ) {
                         return false;
                   }
-                  if ( ( isHeaderLocation || isFooterLocation ) && isContentSectionCandidate ) {
-                        msg = isHeaderLocation ? sektionsLocalizedData.i18n['Header location only accepts modules and pre-built header sections'] : sektionsLocalizedData.i18n['Footer location only accepts modules and pre-built footer sections'];
-                        maybePrintErrorMessage( msg );
-                        return false;
+                  // June 2020 : always allow user sections to be dropped in header and footer location
+                  // while preset section must explicitely be 'content' section_type to be allowed
+                  if ( !self.dndData.is_user_section ) {
+                        if ( ( isHeaderLocation || isFooterLocation ) && isContentSectionCandidate ) {
+                              msg = isHeaderLocation ? sektionsLocalizedData.i18n['Header location only accepts modules and pre-built header sections'] : sektionsLocalizedData.i18n['Footer location only accepts modules and pre-built footer sections'];
+                              maybePrintErrorMessage( msg );
+                              return false;
+                        }
                   }
                   if ( isFooterLocation && 'preset_section' === self.dndData.content_type && 'header' === self.dndData.section_type ) {
                         msg = sektionsLocalizedData.i18n['You can\'t drop a header section in the footer location'];
@@ -9269,7 +10309,1098 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
               // );
 
               //$sectionContent.css( 'padding-bottom',  windowWidth <= mobileWidth ? args.height : '' );
-      }
+          }
+      });//$.extend()
+})( wp.customize, jQuery );//global sektionsLocalizedData
+var CZRSeksPrototype = CZRSeksPrototype || {};
+(function ( api, $ ) {
+      $.extend( CZRSeksPrototype, {
+            ////////////////////////////////////////////////////////
+            // EXPORT
+            ////////////////////////////////////////////////////////
+            //@params { scope : 'local' or 'global' }
+            export_template : function( params ) {
+                  params = params || {};
+                  // normalize params
+                  params = $.extend({
+                      scope : 'local',
+                  }, params );
+
+                  var query = [],
+                      query_params = {
+                            sek_export_nonce : api.settings.nonce.save,
+                            skope_id : 'local' === params.scope ? api.czr_skopeBase.getSkopeProperty( 'skope_id' ) : sektionsLocalizedData.globalSkopeId,
+                            active_locations : api.czr_sektions.activeLocations()
+                      };
+                  _.each( query_params, function(v,k) {
+                        query.push( encodeURIComponent(k) + '=' + encodeURIComponent(v) );
+                  });
+
+                  // The ajax action is used to make a pre-check
+                  // the idea is to avoid a white screen when generating the download window afterwards
+                  wp.ajax.post( 'sek_pre_export_checks', {
+                        nonce: api.settings.nonce.save,
+                        sek_export_nonce : api.settings.nonce.save,
+                        skope_id : 'local' === params.scope ? api.czr_skopeBase.getSkopeProperty( 'skope_id' ) : sektionsLocalizedData.globalSkopeId,
+                        active_locations : api.czr_sektions.activeLocations()
+                  }).done( function() {
+                        // disable the 'beforeunload' listeners generating popup window when the changeset is dirty
+                        $(window).off( 'beforeunload' );
+                        // Generate a download window
+                        // @see add_action( 'customize_register', '\Nimble\sek_catch_export_action', PHP_INT_MAX );
+                        window.location.href = [
+                              sektionsLocalizedData.customizerURL,
+                              '?',
+                              query.join('&')
+                        ].join('');
+                        // re-enable the listeners
+                        $(window).on( 'beforeunload' );
+                  }).fail( function( error_resp ) {
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'import-failed',
+                              type : 'error',
+                              duration : 30000,
+                              message : [
+                                    '<span>',
+                                      '<strong>',
+                                      [ sektionsLocalizedData.i18n['Export failed'], encodeURIComponent( error_resp ) ].join(' '),
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                  });
+            },//export_template
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            ////////////////////////////////////////////////////////
+            // IMPORT FROM USER SAVED COLLECTION OR REMOTE API
+            ////////////////////////////////////////////////////////
+            // @return promise
+            getTmplJsonFromUserTmpl : function( template_name ) {
+                  var self = this, _dfd_ = $.Deferred();
+                  wp.ajax.post( 'sek_get_user_tmpl_json', {
+                        nonce: api.settings.nonce.save,
+                        tmpl_post_name: template_name
+                        //skope_id: api.czr_skopeBase.getSkopeProperty( 'skope_id' )
+                  })
+                  .done( function( response ) {
+                        _dfd_.resolve( {success:true, tmpl_json:response });
+                  })
+                  .fail( function( er ) {
+                        _dfd_.resolve( {success:false});
+                        api.errorLog( 'ajax getTmplJsonFromUserTmpl => error', er );
+                        api.previewer.trigger('sek-notify', {
+                            type : 'error',
+                            duration : 10000,
+                            message : [
+                                  '<span style="font-size:0.95em">',
+                                    '<strong>@missi18n error when fetching the template</strong>',
+                                  '</span>'
+                            ].join('')
+                        });
+                  });
+
+                  return _dfd_;
+            },
+
+            // @return promise
+            getTmplJsonFromApi : function( template_name ) {
+                  var self, _dfd_ = $.Deferred();
+                  $.getJSON( 'https://api.nimblebuilder.com/wp-json/nimble/v2/cravan' )
+                            .done( function( resp ) {
+                                  if ( !_.isObject( resp ) || !resp.lib || !resp.lib.templates ) {
+                                        api.errare( '::import_nimble_template success but invalid response => ', resp  );
+                                        _dfd_.resolve({success:false});
+                                  }
+                                  var _json_data = resp.lib.templates[template_name];
+                                  if ( !_json_data ) {
+                                        api.errare( '::import_nimble_template => the requested template is not available', resp.lib.templates  );
+                                        api.previewer.trigger('sek-notify', {
+                                              notif_id : 'missing-tmpl',
+                                              type : 'info',
+                                              duration : 10000,
+                                              message : [
+                                                    '<span style="color:#0075a2">',
+                                                      '<strong>',
+                                                      '@missi18n the requested template is not available',
+                                                      '</strong>',
+                                                    '</span>'
+                                              ].join('')
+                                        });
+                                        _dfd_.resolve({success:false});
+                                  }
+                                  _dfd_.resolve( {success:true, tmpl_json:_json_data } );
+
+                            })
+                            .fail(function( er ) {
+                                  api.errare( '::import_nimble_template failed => ', er  );
+                                  _dfd_.resolve({success:false});
+                            });
+
+                    return _dfd_.promise();
+            },
+
+            // @params
+            // {
+            //     is_file_import : true,
+            //     pre_import_check : false,
+            //     assign_missing_locations : false,
+            //     input : <= input instance when import is manual
+            //     file_input : $file_input
+            // }
+            // April 2020 : added for https://github.com/presscustomizr/nimble-builder/issues/651
+            // @param params {
+            //    template_name : string,
+            //    from : nimble_api or user
+            // }
+            import_nimble_template : function( params ) {
+                  var self = this;
+                  params = $.extend( {
+                      template_name : '',
+                      from : 'user'
+                  }, params || {});
+                  var tmpl_name = params.template_name;
+                  if ( _.isEmpty( tmpl_name ) || ! _.isString( tmpl_name ) ) {
+                        api.errare('::import => error => invalid template name');
+                  }
+                  console.log('import_nimble_template params ?', params );
+                  var _promise;
+                  if ( 'nimble_api' === params.from ) {
+                        // doc : https://api.jquery.com/jQuery.getJSON/
+                        _promise = self.getTmplJsonFromApi(tmpl_name);
+                  } else {
+                        _promise = self.getTmplJsonFromUserTmpl(tmpl_name);
+                  }
+
+                  // response object structure :
+                  // {
+                  //  data : { nimble content },
+                  //  metas : {
+                  //    skope_id :
+                  //    version :
+                  //    active_location :
+                  //    date :
+                  //    theme :
+                  //  }
+                  // }
+                  _promise.done( function( response ) {
+                        console.log('SO IMPORT ??', response );
+                        if ( response.success ) {
+                              //console.log('IMPORT NIMBLE TEMPLATE', response.lib.templates[template_name] );
+                              self.import_template_from_user_collection_or_remote_api({
+                                    pre_import_check : false,
+                                    template_name : tmpl_name,
+                                    template_data : response.tmpl_json
+                              });
+                        }
+                  });
+            },
+
+            // @param params
+            // {
+            //       pre_import_check : false,
+            //       template_name : tmpl_name,
+            //       template_data : response.tmpl_json
+            // }
+            import_template_from_user_collection_or_remote_api : function( params ) {
+                  console.log('import_template_from_user_collection_or_remote_api', params );
+                  var self = this;
+                  params = params || {};
+                  // normalize params
+                  params = $.extend({
+                      is_file_import : false,
+                      pre_import_check : false,
+                      assign_missing_locations : false,
+                  }, params );
+
+                  // SETUP FOR MANUAL INPUT
+                  var __request__,
+                      _scope = 'local';//<= when importing a template not manually, scope is always local
+
+
+                  // remote template import case
+                  if ( !params.template_data ) {
+                        throw new Error( '::import_template => missing remote template data' );
+                  }
+                  __request__ = wp.ajax.post( 'sek_process_template_json', {
+                        nonce: api.settings.nonce.save,
+                        template_data : JSON.stringify( params.template_data ),
+                        pre_import_check : false//<= might be used in the future do stuffs. For example when importing manually, this property is used to skip the img sniffing on the first pass.
+                        //sek_export_nonce : api.settings.nonce.save,
+                        //skope_id : 'local' === params.scope ? api.czr_skopeBase.getSkopeProperty( 'skope_id' ) : sektionsLocalizedData.globalSkopeId,
+                        //active_locations : api.czr_sektions.activeLocations()
+                  }).done( function( server_resp ) {
+                        api.infoLog('TEMPLATE PRE PROCESS DONE', server_resp );
+                  }).fail( function( error_resp ) {
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'import-failed',
+                              type : 'error',
+                              duration : 30000,
+                              message : [
+                                    '<span>',
+                                      '<strong>',
+                                      [ sektionsLocalizedData.i18n['Export failed'], encodeURIComponent( error_resp ) ].join(' '),
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                  });
+
+
+
+                  /////////////////////////////////////////////
+                  /// NOW THAT WE HAVE OUR PROMISE
+                  /// 1) CHECK IF CONTENT IS WELL FORMED AND ELIGIBLE FOR API
+                  /// 2) LET'S PROCESS THE SETTING ID'S
+                  /// 3) ATTEMPT TO UPDATE THE SETTING API, LOCAL OR GLOBAL. ( always local for template import )
+
+                  // fire a previewer loader removed on .always()
+                  api.previewer.send( 'sek-maybe-print-loader', { fullPageLoader : true, duration : 30000 });
+
+                  // After 30 s display a failure notification
+                  // april 2020 : introduced for https://github.com/presscustomizr/nimble-builder/issues/663
+                  _.delay( function() {
+                        if ( 'pending' !== __request__.state() )
+                          return;
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'import-too-long',
+                              type : 'error',
+                              duration : 20000,
+                              message : [
+                                    '<span>',
+                                      '<strong>',
+                                      sektionsLocalizedData.i18n['Import exceeds server response time, try to uncheck "import images" option.'],
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                  }, 30000 );
+
+
+                  // At this stage, we are not in a pre-check case
+                  // the ajax request is processed and will upload images if needed
+                  __request__
+                        .done( function( server_resp ) {
+
+                              // When manually importing a file, the server adds a "success" property
+                              // When loading a template this property is not sent. Let's normalize.
+                              if ( _.isObject(server_resp) ) {
+                                    server_resp = {success:true, data:server_resp};
+                              }
+                              //console.log('SERVER RESP 2 ?', server_resp );
+                              if ( !api.czr_sektions.isImportedContentEligibleForAPI( server_resp, params ) ) {
+                                    api.infoLog('::import_template problem => !api.czr_sektions.isImportedContentEligibleForAPI', server_resp, params );
+                                    return;
+                              }
+
+                              //console.log('MANUAL IMPORT DATA', server_resp );
+                              server_resp.data.data.collection = self.setIdsForImportedTmpl( server_resp.data.data.collection );
+                              // and try to update the api setting
+                              api.czr_sektions.doUpdateApiSettingAfterTmplImport( server_resp, params );
+                        })
+                        .fail( function( response ) {
+                              api.errare( '::import_template => ajax error', response );
+                              api.previewer.trigger('sek-notify', {
+                                    notif_id : 'import-failed',
+                                    type : 'error',
+                                    duration : 30000,
+                                    message : [
+                                          '<span>',
+                                            '<strong>',
+                                            sektionsLocalizedData.i18n['Import failed, file problem'],
+                                            '</strong>',
+                                          '</span>'
+                                    ].join('')
+                              });
+                        });
+            },//import_template_from_user_collection_or_remote_api
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            ////////////////////////////////////////////////////////
+            // IMPORT FROM FILE
+            ////////////////////////////////////////////////////////
+            import_template_from_file : function( params ) {
+                  console.log('import_template_from_file', params );
+
+                  params = params || {};
+                  // normalize params
+                  params = $.extend({
+                      is_file_import : true,
+                      pre_import_check : false,
+                      assign_missing_locations : false,
+                      input : '',
+                      file_input : ''
+                  }, params );
+
+                  // SETUP FOR MANUAL INPUT
+                  var __request__,
+                      _input = params.input,
+                      _scope = 'local';//<= when importing a template not manually, scope is always local
+
+                  // We must have a params.input when import is manual
+                  if ( _.isEmpty( _input ) ) {
+                      throw new Error( '::import_template => missing file_input param' );
+                  }
+
+                  // We must have a params.file_input when import is manual
+                  if ( _.isEmpty( params.file_input ) ) {
+                      throw new Error( '::import_template => missing file_input param' );
+                  }
+
+                  // Bail here if the file input is invalid
+                  if ( params.file_input.length < 1 || _.isUndefined( params.file_input[0] ) || ! params.file_input[0].files || _.isEmpty( params.file_input.val() ) ) {
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'missing-import-file',
+                              type : 'info',
+                              duration : 30000,
+                              message : [
+                                    '<span style="color:#0075a2">',
+                                      '<strong>',
+                                      sektionsLocalizedData.i18n['Missing file'],
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                        return;
+                  }
+
+                  // Set the scope in the case of a manual import
+                  var inputRegistrationParams = api.czr_sektions.getInputRegistrationParams( _input.id, _input.module.module_type );
+                  _scope = inputRegistrationParams.scope;
+
+                  // display the uploading message
+                  _input.container.find('.sek-uploading').show();
+
+                  // make sure a previous warning gets removed
+                  api.notifications.remove( 'missing-import-file' );
+                  api.notifications.remove( 'import-success' );
+                  api.notifications.remove( 'import-failed' );
+                  api.notifications.remove( 'img-import-errors');
+
+
+                  //console.log('params.file_input[0].files[0] ??', params.file_input[0].files[0] );
+                  var fd = new FormData();
+                  fd.append( 'file_candidate', params.file_input[0].files[0] );
+                  fd.append( 'action', 'sek_get_manually_imported_file_content' );
+                  fd.append( 'nonce', api.settings.nonce.save );
+
+                  // Make sure we have a correct scope provided
+                  if ( !_.contains( ['local', 'global'], _scope ) ) {
+                        api.errare('::import_template => invalid scope provided', _scope );
+                        return;
+                  }
+                  fd.append( 'skope', _scope);
+                  // When doing the pre_import_check, we inform the server about it
+                  // so that the image sniff and upload is not processed at this stage.
+                  if ( params.pre_import_check ) {
+                        fd.append( 'pre_import_check', params.pre_import_check );
+                  }
+
+                  // april 2020 : introduced for https://github.com/presscustomizr/nimble-builder/issues/663
+                  fd.append( 'import_img', _input.input_parent.czr_Input('import_img')() );
+
+                  // fire an uploading message removed on .always()
+                  _input.container.find('.sek-uploading').show();
+
+                  __request__ = $.ajax({
+                        url: wp.ajax.settings.url,
+                        data: fd,
+                        // Setting processData to false lets you prevent jQuery from automatically transforming the data into a query string. See the docs for more info. http://api.jquery.com/jQuery.ajax/
+                        // Setting the contentType to false is imperative, since otherwise jQuery will set it incorrectly. https://stackoverflow.com/a/5976031/33080
+                        processData: false,
+                        contentType: false,
+                        type: 'POST',
+                        // success: function(data){
+                        //   alert(data);
+                        // }
+                  });
+
+                  // When pre checking on manual mode, return a promise
+                  if ( params.pre_import_check ) {
+                        return $.Deferred( function() {
+                              var dfd = this;
+                              __request__
+                                    .done( function( server_resp ) {
+                                          //console.log('__request__ done in pre_import_check', server_resp );
+                                          if( !server_resp.success ) {
+                                                dfd.reject( server_resp );
+                                          }
+                                          if ( !api.czr_sektions.isImportedContentEligibleForAPI( server_resp, params ) ) {
+                                                dfd.reject( server_resp );
+                                          }
+                                          //console.log('ALORS DONE IN PRE IMPORT CHECK ?');
+                                          dfd.resolve( server_resp );
+                                    })
+                                    .fail( function( server_resp ) {
+                                          dfd.reject( server_resp );
+                                    });
+                                    // .always( function() {
+                                    //       //input.container.find('.sek-uploading').hide();
+                                    // });
+                        });
+                  }
+
+
+                  /////////////////////////////////////////////
+                  /// NOW THAT WE HAVE OUR PROMISE
+                  /// 1) CHECK IF CONTENT IS WELL FORMED AND ELIGIBLE FOR API
+                  /// 2) LET'S PROCESS THE SETTING ID'S
+                  /// 3) ATTEMPT TO UPDATE THE SETTING API, LOCAL OR GLOBAL. ( always local for template import )
+
+                  // fire a previewer loader removed on .always()
+                  api.previewer.send( 'sek-maybe-print-loader', { fullPageLoader : true, duration : 30000 });
+
+                  // After 30 s display a failure notification
+                  // april 2020 : introduced for https://github.com/presscustomizr/nimble-builder/issues/663
+                  _.delay( function() {
+                        if ( 'pending' !== __request__.state() )
+                          return;
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'import-too-long',
+                              type : 'error',
+                              duration : 20000,
+                              message : [
+                                    '<span>',
+                                      '<strong>',
+                                      sektionsLocalizedData.i18n['Import exceeds server response time, try to uncheck "import images" option.'],
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                  }, 30000 );
+
+
+                  // At this stage, we are not in a pre-check case
+                  // the ajax request is processed and will upload images if needed
+                  __request__
+                        .done( function( server_resp ) {
+                              //console.log('SERVER RESP 2 ?', server_resp );
+                              if ( !api.czr_sektions.isImportedContentEligibleForAPI( server_resp, params ) ) {
+                                    api.infoLog('::import_template problem => !api.czr_sektions.isImportedContentEligibleForAPI', server_resp, params );
+                                    return;
+                              }
+                              //console.log('MANUAL IMPORT DATA', server_resp );
+                              server_resp.data.data.collection = api.czr_sektions.setIdsForImportedTmpl( server_resp.data.data.collection );
+                              // and try to update the api setting
+                              api.czr_sektions.doUpdateApiSettingAfterTmplImport( server_resp, params );
+                        })
+                        .fail( function( response ) {
+                              api.errare( '::import_template => ajax error', response );
+                              api.previewer.trigger('sek-notify', {
+                                    notif_id : 'import-failed',
+                                    type : 'error',
+                                    duration : 30000,
+                                    message : [
+                                          '<span>',
+                                            '<strong>',
+                                            sektionsLocalizedData.i18n['Import failed, file problem'],
+                                            '</strong>',
+                                          '</span>'
+                                    ].join('')
+                              });
+                        })
+                        .always( function() {
+                              api.czr_sektions.doAlwaysAfterManualImportAndApiSettingUpdate( params );
+                        });
+            },//import_template_from_file
+
+
+
+
+            ////////////////////////////////////////////////////////
+            // FILE IMPORT => PRE-IMPORT CHECKS
+            ////////////////////////////////////////////////////////
+            // Compare current active locations with the imported ones
+            // if some imported locations are not rendered in the current context, reveal the import dialog
+            // before comparing locations, purge the collection of imported location from header and footer if any
+            // "nimble_local_header", "nimble_local_footer"
+            pre_checks_from_file_import : function( server_resp, params ) {
+                  params = params || {};
+                  // normalize params
+                  params = $.extend({
+                      is_file_import : true,
+                      pre_import_check : false,
+                      assign_missing_locations : false,
+                      input : '',
+                      file_input : ''
+                  }, params );
+
+                  // We must have a params.input when import is manual
+                  if ( params.is_file_import && _.isEmpty( params.input ) ) {
+                      throw new Error( '::pre_checks_from_file_import => missing file_input param' );
+                  }
+
+                  var currentActiveLocations = api.czr_sektions.activeLocations(),
+                      importedActiveLocations = $.extend( true, [], _.isArray( server_resp.data.metas.active_locations ) ? server_resp.data.metas.active_locations : [] ),
+                      input = params.input,
+                      inputRegistrationParams = api.czr_sektions.getInputRegistrationParams( input.id, input.module.module_type );
+
+                  // filter to remove local header and footer before comparison with current active locations
+                  importedActiveLocations = _.filter( importedActiveLocations, function( locId ) {
+                        return !_.contains( ['nimble_local_header', 'nimble_local_footer'], locId );
+                  });
+
+                  if ( _.isArray( importedActiveLocations ) && _.isArray( currentActiveLocations ) ) {
+                        var importedActiveLocationsNotAvailableInCurrentActiveLocations = $(importedActiveLocations).not(currentActiveLocations).get();
+
+                        if ( !_.isEmpty( importedActiveLocationsNotAvailableInCurrentActiveLocations ) ) {
+                              if ( params.is_file_import ) {
+                                    input.container.find('button[data-czr-action="sek-pre-import"]').hide();
+
+                                    // Different messages for local and global
+                                    // since sept 2019 for https://github.com/presscustomizr/nimble-builder/issues/495
+                                    // @see tmpl-nimble-input___import_export input php template for messages
+                                    if ( 'local' === inputRegistrationParams.scope ) {
+                                          input.container.find('.czr-import-dialog.czr-local-import').slideToggle();
+                                    } else {
+                                          input.container.find('.czr-import-dialog.czr-global-import').slideToggle();
+                                    }
+                              }
+                              api.infoLog('sek-pre-import => imported locations missing in current page.', importedActiveLocationsNotAvailableInCurrentActiveLocations );
+                        } else {
+                              api.czr_sektions.import_template_from_file( params );
+                        }
+                  } else {
+                        // if current and imported location are not arrays, there's a problem.
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'import-failed',
+                              type : 'info',
+                              duration : 30000,
+                              message : [
+                                    '<span style="color:#0075a2">',
+                                      '<strong>',
+                                      sektionsLocalizedData.i18n['Import failed'],
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                        if ( params.is_file_import ) {
+                              api.czr_sektions.doAlwaysAfterManualImportAndApiSettingUpdate( params );
+                        }
+                  }
+            },//pre_checks_from_file_import
+
+
+
+
+
+
+            // Recursive helper to set ids in imported templates
+            // we have a server_resp well structured { success : true, data : { data : , metas, img_errors } }
+            // Let's set the unique level ids
+            setIdsForImportedTmpl : function( _data ) {
+                  var self = this;
+                  if ( _.isObject( _data ) || _.isArray( _data ) ) {
+                        _.each( _data, function( _v, _k ) {
+                              // go recursive ?
+                              if ( _.isObject( _v ) || _.isArray( _v ) ) {
+                                    _data[_k] = self.setIdsForImportedTmpl( _v );
+                              }
+                              // double check on both the key and the value
+                              // also re-generates new ids when the export has been done without replacing the ids by '__rep__me__'
+                              if ( 'id' === _k && _.isString( _v ) && ( 0 === _v.indexOf( '__rep__me__' ) || 0 === _v.indexOf( '__nimble__' ) ) ) {
+                                    _data[_k] = sektionsLocalizedData.optPrefixForSektionsNotSaved + api.czr_sektions.guid();
+                              }
+                        });
+                  }
+                  return _data;
+            },
+
+
+
+
+            // @return a boolean
+            // server_resp : { success : true, data : {...} }
+            // check if :
+            // - server resp is a success
+            // - the server_response is well formed
+            isImportedContentEligibleForAPI : function( server_resp, params ) {
+                  var status = true;
+                  // If the setting value is unchanged, no need to go further
+                  // is_local is decided with the input id => @see revision_history input type.
+                  var unserialized_file_content = server_resp.data,
+                      import_success = server_resp.success,
+                      importErrorMsg = null;
+
+                  // PHP generates the export like this:
+                  // $export = array(
+                  //     'data' => sek_get_skoped_seks( $_REQUEST['skope_id'] ),
+                  //     'metas' => array(
+                  //         'skope_id' => $_REQUEST['skope_id'],
+                  //         'version' => NIMBLE_VERSION,
+                  //         // is sent as a string : "__after_header,__before_main_wrapper,loop_start,__before_footer"
+                  //         'active_locations' => is_string( $_REQUEST['active_locations'] ) ? explode( ',', $_REQUEST['active_locations'] ) : array(),
+                  //         'date' => date("Y-m-d")
+                  //     )
+                  // );
+                  // @see sek_maybe_export()
+
+                  //api.infoLog('AJAX SUCCESS file_content ', server_resp, unserialized_file_content );
+                  if ( !import_success ) {
+                       importErrorMsg = [ sektionsLocalizedData.i18n['Import failed'], unserialized_file_content ].join(' : ');
+                  }
+
+                  if ( _.isNull( importErrorMsg ) && ! _.isObject( unserialized_file_content ) ) {
+                        importErrorMsg = sektionsLocalizedData.i18n['Import failed, invalid file content'];
+                  }
+
+                  // Verify that we have the setting value and the import metas
+                  var importSettingValue = unserialized_file_content.data,
+                      importMetas = unserialized_file_content.metas,
+                      imgImporErrors = unserialized_file_content.img_errors;
+
+                  if ( _.isNull( importErrorMsg ) && ! _.isObject( importSettingValue ) ) {
+                        importErrorMsg = sektionsLocalizedData.i18n['Import failed, invalid file content'];
+                  }
+
+                  if ( _.isNull( importErrorMsg ) && ! _.isObject( importMetas ) ) {
+                        importErrorMsg = sektionsLocalizedData.i18n['Import failed, invalid file content'];
+                  }
+
+                  var currentSetId = api.czr_sektions.localSectionsSettingId();
+
+                  // Manual import => set the relevant setting ID
+                  if ( params.is_file_import ) {
+                      var _input = params.input,
+                          inputRegistrationParams = api.czr_sektions.getInputRegistrationParams( _input.id, _input.module.module_type );
+
+                      currentSetId = 'local' === inputRegistrationParams.scope ? currentSetId : api.czr_sektions.getGlobalSectionsSettingId();
+                  }
+
+
+                  if ( _.isNull( importErrorMsg ) && _.isEqual( api( currentSetId )(), importSettingValue ) ) {
+                        api.infoLog('::isImportedContentEligibleForAPI => Setting unchanged');
+                        status = false;
+                  }
+
+                  // bail here if we have an import error msg
+                  if ( !_.isNull( importErrorMsg ) ) {
+                        api.errare('::isImportedContentEligibleForAPI => invalid data sent from server', unserialized_file_content );
+                        api.errare('::isImportedContentEligibleForAPI => importErrorMsg', importErrorMsg );
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'import-failed',
+                              type : 'error',
+                              duration : 30000,
+                              message : [
+                                    '<span>',
+                                      '<strong>',
+                                      importErrorMsg,
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                        status = false;
+                  }
+
+                  // Img importation errors ?
+                  if ( !_.isEmpty( imgImporErrors ) ) {
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'img-import-errors',
+                              type : 'info',
+                              duration : 60000,
+                              message : [
+                                    '<span style="color:#0075a2">',
+                                      [
+                                        '<strong>' + sektionsLocalizedData.i18n['Some image(s) could not be imported'] + '</strong><br/>',
+                                        '<span style="font-size:11px">' + imgImporErrors + '</span>'
+                                      ].join(' : '),
+                                    '</span>'
+                              ].join('')
+                        });
+                  }
+                  return status;
+            },
+
+
+
+
+
+
+
+
+
+
+
+
+
+            // fired on ajaxrequest done
+            // At this stage, the server_resp data structure has been validated.
+            // We can try to the update the api setting
+            doUpdateApiSettingAfterTmplImport : function( server_resp, params ){
+                  params = params || {};
+                  if ( !api.czr_sektions.isImportedContentEligibleForAPI( server_resp, params ) && params.is_file_import ) {
+                        api.czr_sektions.doAlwaysAfterManualImportAndApiSettingUpdate( params );
+                        return;
+                  }
+
+                  var _scope = 'local',
+                      _keep_existing_sections = false;//<= only possibly true when importing manually
+
+                  // Manual import => set the relevant scope
+                  if ( params.is_file_import ) {
+                      var _input = params.input,
+                          inputRegistrationParams = api.czr_sektions.getInputRegistrationParams( _input.id, _input.module.module_type );
+
+                      _scope = inputRegistrationParams.scope;
+                      _keep_existing_sections = 'local' === inputRegistrationParams.scope ? _input.input_parent.czr_Input('keep_existing_sections')() : false;
+                      // api.infoLog('api.czr_sektions.localSectionsSettingId()?', api.czr_sektions.localSectionsSettingId());
+                      // api.infoLog('inputRegistrationParams.scope ?', inputRegistrationParams.scope );
+                  }
+
+
+
+                  //api.infoLog('TODO => verify metas => version, active locations, etc ... ');
+
+                  // Update the setting api via the normalized method
+                  // the scope will determine the setting id, local or global
+                  api.czr_sektions.updateAPISetting({
+                        action : 'sek-import-from-file',
+                        scope : _scope,//'global' or 'local'<= will determine which setting will be updated,
+                        // => self.getGlobalSectionsSettingId() or self.localSectionsSettingId()
+                        imported_content : server_resp.data,
+                        assign_missing_locations : params.assign_missing_locations,
+                        keep_existing_sections : _keep_existing_sections
+                  }).done( function() {
+                        // Clean an regenerate the local option setting
+                        // Settings are normally registered once and never cleaned, unlike controls.
+                        // After the import, updating the setting value will refresh the sections
+                        // but the local options, persisted in separate settings, won't be updated if the settings are not cleaned
+                        if ( 'local' === _scope ) {
+                              api.czr_sektions.generateUI({
+                                    action : 'sek-generate-local-skope-options-ui',
+                                    clean_settings : true//<= see api.czr_sektions.generateUIforLocalSkopeOptions()
+                              });
+                        }
+
+                        //_notify( sektionsLocalizedData.i18n['The revision has been successfully restored.'], 'success' );
+                        api.previewer.refresh();
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'import-success',
+                              type : 'success',
+                              duration : 30000,
+                              message : [
+                                    '<span>',
+                                      '<strong>',
+                                      sektionsLocalizedData.i18n['File successfully imported'],
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                  }).fail( function( response ) {
+                        api.errare( '::doUpdateApiSettingAfterTmplImport => error when firing ::updateAPISetting', response );
+                        api.previewer.trigger('sek-notify', {
+                              notif_id : 'import-failed',
+                              type : 'error',
+                              duration : 30000,
+                              message : [
+                                    '<span>',
+                                      '<strong>',
+                                      [ sektionsLocalizedData.i18n['Import failed'], response ].join(' : '),
+                                      '</strong>',
+                                    '</span>'
+                              ].join('')
+                        });
+                  });
+
+                  // Refresh the preview, so the markup is refreshed and the css stylesheet are generated
+                  api.previewer.refresh();
+            },//doUpdateApiSettingAfterTmplImport()
+
+
+
+
+
+
+
+
+
+
+            // Fired when params.is_file_import only
+            doAlwaysAfterManualImportAndApiSettingUpdate : function( params ) {
+                  api.previewer.send( 'sek-clean-loader', { cleanFullPageLoader : true });
+
+                  params = params || {};
+                  // normalize params
+                  params = $.extend({
+                      is_file_import : true,
+                      pre_import_check : false,
+                      assign_missing_locations : false,
+                      input : '',
+                      file_input : ''
+                  }, params );
+
+                  if ( !params.is_file_import )
+                    return;
+
+                  var input = params.input;
+
+                  input.container.find('.sek-uploading').hide();
+                  // Clean the file input val
+                  params.file_input.val('').trigger('change');
+                  // Close the import dialog
+                  input.container.find('.czr-import-dialog').hide();
+                  // display back the pre import button
+                  input.container.find('button[data-czr-action="sek-pre-import"]').show();
+            }
+      });//$.extend()
+})( wp.customize, jQuery );//global sektionsLocalizedData
+var CZRSeksPrototype = CZRSeksPrototype || {};
+(function ( api, $ ) {
+      $.extend( CZRSeksPrototype, {
+            ////////////////////////////////////////////////////////
+            // TEMPLATE GALLERY
+            ////////////////////////////////////////////////////////
+            // APRIL 2020 : for https://github.com/presscustomizr/nimble-builder/issues/651
+            setupTemplateGallery : function() {
+
+
+                  var self = this;
+                  self.templateGalleryExpanded = new api.Value(false);
+                  if ( !sektionsLocalizedData.isTemplateGalleryEnabled )
+                    return;
+
+                  self.templateGalleryExpanded.bind( function( expanded ) {
+
+
+                        self.cachedElements.$body.toggleClass( 'sek-template-gallery-expanded', expanded );
+                        if ( expanded ) {
+                              // close template saver
+                              // close level tree
+                              self.tmplDialogVisible(false);
+                              self.levelTreeExpanded(false);
+                              $('#customize-preview iframe').css('z-index', 1);
+                              self.renderOrRefreshTempGallery();
+                        } else {
+                              $('#customize-preview iframe').css('z-index', '');
+                        }
+                  });
+
+                  // API READY
+                  api.previewer.bind('ready', function() {
+                        self.templateGalleryExpanded( false );
+                  });
+            },
+
+            renderTmplGalleryUI : function() {
+                  if ( $('#nimble-tmpl-gallery').length > 0 )
+                    return $('#nimble-tmpl-gallery');
+
+                  var self = this;
+
+                  try {
+                        _tmpl =  wp.template( 'nimble-top-tmpl-gallery' )( {} );
+                  } catch( er ) {
+                        api.errare( 'Error when parsing nimble-top-tmpl-gallery template', er );
+                        return false;
+                  }
+                  $('#customize-preview').after( $( _tmpl ) );
+                  return $('#nimble-tmpl-gallery');
+            },
+
+            // print and schedule dom events
+            renderOrRefreshTempGallery : function() {
+                  var self = this,
+                      _tmpl;
+                  if( $('#nimble-tmpl-gallery').length < 1 ) {
+                        $.when( self.renderTmplGalleryUI({}) ).done( function() {
+                              self.setupTmplGalleryDOMEvents();
+                        });
+                  }
+
+                  // Clean previous html
+                  var $galleryInner = $('#nimble-tmpl-gallery').find('.sek-tmpl-gallery-inner');
+                  $galleryInner.html('');
+                  // Wait for the gallery to be fetched and rendered
+                  self.getTemplateGalleryHtml().done( function( html ) {
+                        $galleryInner.html( html );
+                  });
+            },
+
+            // @return void()
+            setupTmplGalleryDOMEvents : function() {
+                var $galWrapper = $('#nimble-tmpl-gallery');
+                var self = this;
+                $galWrapper
+                    // Schedule click event with delegation
+                    .on('click', '.sek-tmpl-item .use-tmpl', function( evt ) {
+                          evt.preventDefault();
+                          evt.stopPropagation();
+                          var tmpl_id = $(this).closest('.sek-tmpl-item').data('sek-tmpl-item-id');
+                          if ( _.isEmpty(tmpl_id) ) {
+                              api.errare('::setupTmplGalleryDOMEvents => error => invalid template id');
+                          }
+                          //api.czr_sektions.import_nimble_template( $(this).data('sek-tmpl-item-id') );
+                          //api.czr_sektions.import_nimble_template( {template_name : 'test_one', from: 'nimble_api'});// FOR TEST PURPOSES UNTIL THE COLLECTION IS SETUP
+                          api.czr_sektions.import_nimble_template( {template_name : tmpl_id, from: 'user'});
+
+                          self.templateGalleryExpanded(false);
+                    })
+                    .on('propertychange change click keyup input paste', '.sek-filter-tmpl', _.debounce( function(evt) {
+                          evt.preventDefault();
+                          var _s = $(this).val();
+                          console.log('searched string ??', _s );
+                          var _reset = function() {
+                                $galWrapper.removeClass('search-active');
+                                $galWrapper.find('.sek-tmpl-item').each( function() {
+                                      $(this).removeClass('search-match');
+                                });
+                          };
+                          if ( !_.isString(_s) ) {
+                                _reset();
+                                return;
+                          }
+                          _s = _s.trim().toLowerCase();
+                          if ( _.isEmpty( _s.replace(/\s/g, '') ) ) {
+                                _reset();
+                          } else {
+                                $galWrapper.addClass('search-active');
+                                var title,desc,date,titleMatch, descMatch,dateMatch;
+                                $galWrapper.find('.sek-tmpl-item').each( function() {
+                                      title = ( $(this).find('.tmpl-title').html() + '' ).toLowerCase();
+                                      desc = ( $(this).find('.tmpl-desc').html() + '' ).toLowerCase();
+                                      date = ( $(this).find('.tmpl-date').html() + '' ).toLowerCase();
+                                      titleMatch = -1 != title.indexOf(_s);
+                                      descMatch = -1 != desc.indexOf(_s);
+                                      dateMatch = -1 != date.indexOf(_s);
+                                      $(this).toggleClass( 'search-match', titleMatch || descMatch || dateMatch );
+                                });
+                          }
+
+                    }, 100 ) )
+                    .on( 'click', '.sek-tmpl-info .remove-tmpl', function(evt) {
+                          evt.preventDefault();
+                          var _focusOnRemoveCandidate = function( mode ) {
+                                self.tmplDialogMode( 'remove' );
+                                // self unbind
+                                self.tmplDialogMode.unbind( _focusOnRemoveCandidate );
+                          };
+                          self.tmplDialogMode.bind( _focusOnRemoveCandidate );
+                          self.tmplDialogVisible(true);
+                    })
+                    .on( 'click', '.sek-close-dialog', function(evt) {
+                          evt.preventDefault();
+                          self.templateGalleryExpanded( false );
+                    });
+            },
+
+            // @return html
+            getTemplateGalleryHtml : function() {
+                  var self = this,
+                      _html = '';
+                  // var _templates = {
+                  //       temp_one : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_two : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_three : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_four : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_fsour : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_fosur : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_five : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_six : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_seven : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       },
+                  //       temp_height : {
+                  //           thumb_url : 'https://nimblebuilder.com/wp-content/uploads/2020/04/2020-04-06_16-36-12.jpg',
+                  //           preview_url : ''
+                  //       }
+                  // };
+
+                  // _.each( _templates, function( _data, _temp_id ) {
+                  //     console.log('SO?', _temp_id );
+                  //     _html += '<div class="sek-tmpl-item" data-sek-tmpl-item-id="' + _temp_id + '">';
+                  //       _html += '<div class="sek-tmpl-thumb"><img src="'+ _data.thumb_url +'"/></div>';
+                  //     _html += '</div>';
+                  // });
+                  var _thumbUrl = [ sektionsLocalizedData.baseUrl , '/assets/admin/img/wire_frame.png',  '?ver=' , sektionsLocalizedData.nimbleVersion ].join(''),
+                      _dfd_ = $.Deferred(),
+                      _titleAttr;
+
+                  self.getSavedTmplCollection().done( function( tmpl_collection ) {
+                        _.each( tmpl_collection, function( _data, _temp_id ) {
+                              if( !_.isEmpty( _data.description ) ) {
+                                  _titleAttr = [ _data.title, _data.last_modified_date, _data.description ].join(' | ');
+                              } else {
+                                  _titleAttr = [ _data.title, _data.last_modified_date ].join(' | ');
+                              }
+
+                              _html += '<div class="sek-tmpl-item" data-sek-tmpl-item-id="' + _temp_id + '">';
+                                _html += '<div class="sek-tmpl-thumb"><img src="'+ _thumbUrl +'"/></div>';
+                                _html += '<div class="sek-tmpl-info" title="'+ _titleAttr +'">';
+                                  _html += '<h3 class="tmpl-title">' + _data.title + '</h3>';
+                                  _html += '<p class="tmpl-date"><i>' + [ sektionsLocalizedData.i18n['Last modified'], ' : ', _data.last_modified_date ].join(' ') + '</i></p>';
+                                  _html += '<p class="tmpl-desc">' + _data.description + '</p>';
+                                  _html += '<i class="material-icons use-tmpl" title="'+ sektionsLocalizedData.i18n['Use this template'] +'">add_circle_outline</i>';
+                                  _html += '<i class="material-icons remove-tmpl" title="'+ sektionsLocalizedData.i18n['Remove this template'] +'">delete_forever</i>';
+                                _html += '</div>';
+                              _html += '</div>';
+                        });
+
+                        var $cssLoader = $('#nimble-tmpl-gallery').find('.czr-css-loader');
+                        if ( $cssLoader.length > 0 ) {
+                              $cssLoader.hide({
+                                    duration : 300,
+                                    complete : function() {
+                                          $(this).remove();
+                                          _dfd_.resolve( _html );
+                                    }
+                              });
+                        } else {
+                              _dfd_.resolve( _html );
+                        }
+                  });
+
+                  return _dfd_.promise();
+            }
       });//$.extend()
 })( wp.customize, jQuery );//global sektionsLocalizedData
 var CZRSeksPrototype = CZRSeksPrototype || {};
@@ -9296,7 +11427,8 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
             content_type_switcher : function( input_options ) {
                   var input = this,
                       _section_,
-                      initial_content_type;
+                      initial_content_type,
+                      nbApiInstance = api.czr_sektions;
 
                   if ( ! api.section.has( input.module.control.section() ) ) {
                         throw new Error( 'api.czrInputMap.content_type_switcher => section not registered' );
@@ -9306,10 +11438,34 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   // attach click event on data-sek-content-type buttons
                   input.container.on('click', '[data-sek-content-type]', function( evt ) {
                         evt.preventDefault();
-                        // handle the is-selected css class toggling
-                        input.container.find('[data-sek-content-type]').removeClass('is-selected').attr( 'aria-pressed', false );
-                        $(this).addClass('is-selected').attr( 'aria-pressed', true );
-                        api.czr_sektions.currentContentPickerType( $(this).data( 'sek-content-type') );
+                        var _contentType = $(this).data( 'sek-content-type');
+                        // handle the aria-pressed state
+                        input.container.find('[data-sek-content-type]').attr( 'aria-pressed', false );
+
+                        // close other dialog
+                        nbApiInstance.templateGalleryExpanded(false);
+                        nbApiInstance.levelTreeExpanded(false);
+                        if ( nbApiInstance.tmplDialogVisible ) {
+                              nbApiInstance.tmplDialogVisible(false);
+                        }
+                        if ( nbApiInstance.saveSectionDialogVisible ) {
+                              nbApiInstance.saveSectionDialogVisible(false);
+                        }
+
+                        // April 2020 : template case added for https://github.com/presscustomizr/nimble-builder/issues/651
+                        if ( 'template' === _contentType ) {
+                              var _isExpanded = api.czr_sektions.templateGalleryExpanded();
+                              $(this).attr( 'aria-pressed', !_isExpanded );
+
+                              api.czr_sektions.templateGalleryExpanded(!_isExpanded);
+                        } else {
+                              // always close the template picker when selecting something else
+                              api.czr_sektions.templateGalleryExpanded(false);
+
+                              $(this).attr( 'aria-pressed', true );
+                              // case for section and module content type
+                              api.czr_sektions.currentContentPickerType( _contentType );
+                        }
                   });
 
 
@@ -9337,6 +11493,9 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   api.czr_sektions.currentContentPickerType.bind( function( contentType ) {
                         _do_( contentType );
                   });
+
+                  // initialize with module picker
+                  input.container.find( '[data-sek-content-type="' + ( input() || 'module' ) + '"]').trigger('click');
             }
       });
 })( wp.customize, jQuery, _ );//global sektionsLocalizedData
@@ -9363,6 +11522,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                 //console.log( this.id, input_options );
             },
 
+            // June 2020 : input type used for both prebuilt and user sections
             section_picker : function( input_options ) {
                   var input = this;
                   // Mouse effect with cursor: -webkit-grab; -webkit-grabbing;
@@ -9647,6 +11807,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                     }
                               }
                         });
+
                         $('.sek-unit-wrapper', input.container ).find('[data-sek-unit="' + validateUnit.call( input, unitToActivate ) + '"]').trigger('click', { previewed_device_switched : true });// We don't want to update the input();
                   };
 
@@ -9686,6 +11847,12 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                         } else {
                               // this allow users to reset a given padding / margin instead of reseting them all at once with the "reset all spacing" option
                               _newInputVal[ previewedDevice ] = _.omit( _newInputVal[ previewedDevice ], changedSpacingType );
+                        }
+
+                        // Make sure the current device unit is consistent with the input value
+                        // fixes https://github.com/presscustomizr/nimble-builder/issues/667
+                        if ( !_newInputVal[previewedDevice]['unit'] || input.css_unit() != _newInputVal[ previewedDevice ][ 'unit' ] ) {
+                            _newInputVal[previewedDevice]['unit'] = input.css_unit();
                         }
 
                         input( _newInputVal );
@@ -12115,7 +14282,8 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                           alert(sektionsLocalizedData.i18n['Nothing to export.']);
                                           break;
                                     }
-                                    _export( { scope : currentScope } );// local or global
+                                    //_export( { scope : currentScope } );// local or global
+                                    api.czr_sektions.export_template( { scope : currentScope }  );
                               break;//'sek-export'
 
                               case 'sek-pre-import' :
@@ -12126,444 +14294,52 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                           break;
                                     }
 
-                                    // Before actually importing, let's do a preliminary
-                                    _import( { pre_import_check : true } )
-                                          .done( _pre_import_checks )
-                                          .fail( function( error_resp ) {
-                                                api.errare( 'sek_pre_import_checks failed', error_resp );
-                                                _doAlwaysAfterImportApiSettingUpdate();
-                                                _import();
+                                    api.czr_sektions.import_template_from_file({
+                                        pre_import_check : true,
+                                        input : input,
+                                        file_input : $file_input
+                                    })
+                                    .done( function( server_resp ) {
+                                          api.czr_sektions.pre_checks_from_file_import( server_resp, {
+                                              pre_import_check : false,
+                                              input : input,
+                                              file_input : $file_input
                                           });
+                                    })
+                                    .fail( function( error_resp ) {
+                                          api.errare( 'import_export_ input => pre_checks_from_file_import failed', error_resp );
+                                          api.czr_sektions.doAlwaysAfterManualImportAndApiSettingUpdate({
+                                              input : input,
+                                              file_input : $file_input
+                                          });
+                                          api.czr_sektions.import_template_from_file({
+                                              input : input,
+                                              file_input : $file_input
+                                          });
+                                    });
+
                               break;//'sek-import'
                               case 'sek-import-as-is' :
-                                    _import();
+                                    api.czr_sektions.import_template_from_file({
+                                        input : input,
+                                        file_input : $file_input
+                                    });
                               break;
                               case 'sek-import-assign' :
-                                    _import( { assign_missing_locations : true } );
+                                    api.czr_sektions.import_template_from_file({
+                                        assign_missing_locations : true,
+                                        input : input,
+                                        file_input : $file_input
+                                    });
                               break;
                               case 'sek-cancel-import' :
-                                    _doAlwaysAfterImportApiSettingUpdate();
+                                    api.czr_sektions.doAlwaysAfterManualImportAndApiSettingUpdate({
+                                        input : input,
+                                        file_input : $file_input
+                                    });
                               break;
                         }//switch
                   });//input.container.on( 'click' .. )
-
-
-
-                  ////////////////////////////////////////////////////////
-                  // PRE EXPORT CHECKS
-                  ////////////////////////////////////////////////////////
-                  //@params { scope : 'local' or 'global' }
-                  var _export = function( params ) {
-                          var query = [],
-                              query_params = {
-                                    sek_export_nonce : api.settings.nonce.save,
-                                    skope_id : 'local' === params.scope ? api.czr_skopeBase.getSkopeProperty( 'skope_id' ) : sektionsLocalizedData.globalSkopeId,
-                                    active_locations : api.czr_sektions.activeLocations()
-                              };
-                          _.each( query_params, function(v,k) {
-                                query.push( encodeURIComponent(k) + '=' + encodeURIComponent(v) );
-                          });
-
-                          // The ajax action is used to make a pre-check
-                          // the idea is to avoid a white screen when generating the download window afterwards
-                          wp.ajax.post( 'sek_pre_export_checks', {
-                                nonce: api.settings.nonce.save,
-                                sek_export_nonce : api.settings.nonce.save,
-                                skope_id : 'local' === params.scope ? api.czr_skopeBase.getSkopeProperty( 'skope_id' ) : sektionsLocalizedData.globalSkopeId,
-                                active_locations : api.czr_sektions.activeLocations()
-                          }).done( function() {
-                                // disable the 'beforeunload' listeners generating popup window when the changeset is dirty
-                                $(window).off( 'beforeunload' );
-                                // Generate a download window
-                                // @see add_action( 'customize_register', '\Nimble\sek_catch_export_action', PHP_INT_MAX );
-                                window.location.href = [
-                                      sektionsLocalizedData.customizerURL,
-                                      '?',
-                                      query.join('&')
-                                ].join('');
-                                // re-enable the listeners
-                                $(window).on( 'beforeunload' );
-                          }).fail( function( error_resp ) {
-                                api.previewer.trigger('sek-notify', {
-                                      notif_id : 'import-failed',
-                                      type : 'error',
-                                      duration : 30000,
-                                      message : [
-                                            '<span>',
-                                              '<strong>',
-                                              [ sektionsLocalizedData.i18n['Export failed'], encodeURIComponent( error_resp ) ].join(' '),
-                                              '</strong>',
-                                            '</span>'
-                                      ].join('')
-                                });
-                          });
-                  };//_export()
-
-
-
-
-
-
-                  ////////////////////////////////////////////////////////
-                  // PRE-IMPORT
-                  ////////////////////////////////////////////////////////
-                  // Compare current active locations with the imported ones
-                  // if some imported locations are not rendered in the current context, reveal the import dialog
-                  // before comparing locations, purge the collection of imported location from header and footer if any
-                  // "nimble_local_header", "nimble_local_footer"
-                  var _pre_import_checks = function( server_resp ) {
-                        var currentActiveLocations = api.czr_sektions.activeLocations(),
-                            importedActiveLocations = $.extend( true, [], _.isArray( server_resp.data.metas.active_locations ) ? server_resp.data.metas.active_locations : [] );
-
-                        // filter to remove local header and footer before comparison with current active locations
-                        importedActiveLocations = _.filter( importedActiveLocations, function( locId ) {
-                              return !_.contains( ['nimble_local_header', 'nimble_local_footer'], locId );
-                        });
-
-                        if ( _.isArray( importedActiveLocations ) && _.isArray( currentActiveLocations ) ) {
-                              var importedActiveLocationsNotAvailableInCurrentActiveLocations = $(importedActiveLocations).not(currentActiveLocations).get();
-
-                              if ( !_.isEmpty( importedActiveLocationsNotAvailableInCurrentActiveLocations ) ) {
-                                    $pre_import_button.hide();
-                                    // Different messages for local and global
-                                    // since sept 2019 for https://github.com/presscustomizr/nimble-builder/issues/495
-                                    // @see tmpl-nimble-input___import_export input php template for messages
-                                    if ( 'local' === currentScope ) {
-                                          input.container.find('.czr-import-dialog.czr-local-import').slideToggle();
-                                    } else {
-                                          input.container.find('.czr-import-dialog.czr-global-import').slideToggle();
-                                    }
-
-                                    api.infoLog('sek-pre-import => imported locations missing in current page.', importedActiveLocationsNotAvailableInCurrentActiveLocations );
-                              } else {
-                                    _import();
-                              }
-                        } else {
-                              // if current and imported location are not arrays, there's a problem.
-                              api.previewer.trigger('sek-notify', {
-                                    notif_id : 'import-failed',
-                                    type : 'info',
-                                    duration : 30000,
-                                    message : [
-                                          '<span style="color:#0075a2">',
-                                            '<strong>',
-                                            sektionsLocalizedData.i18n['Import failed'],
-                                            '</strong>',
-                                          '</span>'
-                                    ].join('')
-                              });
-                              _doAlwaysAfterImportApiSettingUpdate();
-                        }
-                  };//_pre_import_checks
-
-
-                  ////////////////////////////////////////////////////////
-                  // IMPORT
-                  ////////////////////////////////////////////////////////
-                  var _import = function( params ) {
-                        params = params || {};
-                        // Bail here if the file input is invalid
-                        if ( $file_input.length < 1 || _.isUndefined( $file_input[0] ) || ! $file_input[0].files || _.isEmpty( $file_input.val() ) ) {
-                              api.previewer.trigger('sek-notify', {
-                                    notif_id : 'missing-import-file',
-                                    type : 'info',
-                                    duration : 30000,
-                                    message : [
-                                          '<span style="color:#0075a2">',
-                                            '<strong>',
-                                            sektionsLocalizedData.i18n['Missing file'],
-                                            '</strong>',
-                                          '</span>'
-                                    ].join('')
-                              });
-                              return;
-                        }
-
-
-                        // make sure a previous warning gets removed
-                        api.notifications.remove( 'missing-import-file' );
-                        api.notifications.remove( 'import-success' );
-                        api.notifications.remove( 'import-failed' );
-                        api.notifications.remove( 'img-import-errors');
-
-                        // display the uploading message
-                        input.container.find('.sek-uploading').show();
-
-                        var fd = new FormData();
-                        fd.append( 'file_candidate', $file_input[0].files[0] );
-                        fd.append( 'action', 'sek_get_imported_file_content' );
-                        fd.append( 'nonce', api.settings.nonce.save );
-
-                        // Make sure we have a correct scope provided
-                        if ( !_.contains( ['local', 'global'], inputRegistrationParams.scope ) ) {
-                              api.errare('sek-import input => invalid scope provided', inputRegistrationParams.scope );
-                              return;
-                        }
-                        fd.append( 'skope', inputRegistrationParams.scope);
-                        // When doing the pre_import_check, we inform the server about it
-                        // so that the image sniff and upload is not processed at this stage.
-                        if ( params.pre_import_check ) {
-                              fd.append( 'pre_import_check', params.pre_import_check );
-                        }
-
-                        __request__ = $.ajax({
-                              url: wp.ajax.settings.url,
-                              data: fd,
-                              // Setting processData to false lets you prevent jQuery from automatically transforming the data into a query string. See the docs for more info. http://api.jquery.com/jQuery.ajax/
-                              // Setting the contentType to false is imperative, since otherwise jQuery will set it incorrectly. https://stackoverflow.com/a/5976031/33080
-                              processData: false,
-                              contentType: false,
-                              type: 'POST',
-                              // success: function(data){
-                              //   alert(data);
-                              // }
-                        });
-
-                        // When pre checking, return a promise
-                        if ( params.pre_import_check ) {
-                            return $.Deferred( function() {
-                                  var dfd = this;
-                                  __request__
-                                        .done( function( server_resp ) {
-                                              if( !server_resp.success ) {
-                                                    dfd.reject( server_resp );
-                                              }
-                                              if ( !_isImportedContentEligibleForAPI( server_resp ) ) {
-                                                    dfd.reject( server_resp );
-                                              }
-                                              dfd.resolve( server_resp );
-                                        })
-                                        .fail( function( server_resp ) {
-                                              dfd.reject( server_resp );
-                                        })
-                                        .always( function() {
-                                              //input.container.find('.sek-uploading').hide();
-                                        });
-                            });
-                        }
-
-                        // fire a previewer loader
-                        // and and uploading message
-                        // both removed on .always()
-                        input.container.find('.sek-uploading').show();
-                        api.previewer.send( 'sek-maybe-print-loader', { fullPageLoader : true });
-
-                        // At this stage, we are not in a pre-check case
-                        // the ajax request is processed and will upload images if needed
-                        __request__
-                              .done( function( server_resp ) {
-                                    // we have a server_resp well structured { success : true, data : { data : , metas, img_errors } }
-                                    // Let's set the unique level ids
-                                    var _setIds = function( _data ) {
-                                          if ( _.isObject( _data ) || _.isArray( _data ) ) {
-                                                _.each( _data, function( _v, _k ) {
-                                                      // go recursive ?
-                                                      if ( _.isObject( _v ) || _.isArray( _v ) ) {
-                                                            _data[_k] = _setIds( _v );
-                                                      }
-                                                      // double check on both the key and the value
-                                                      // also re-generates new ids when the export has been done without replacing the ids by '__rep__me__'
-                                                      if ( 'id' === _k && _.isString( _v ) && ( 0 === _v.indexOf( '__rep__me__' ) || 0 === _v.indexOf( '__nimble__' ) ) ) {
-                                                            _data[_k] = sektionsLocalizedData.optPrefixForSektionsNotSaved + api.czr_sektions.guid();
-                                                      }
-                                                });
-                                          }
-                                          return _data;
-                                    };
-                                    server_resp.data.data.collection = _setIds( server_resp.data.data.collection );
-                                    // and try to update the api setting
-                                    _doUpdateApiSetting( server_resp, params );
-                              })
-                              .fail( function( response ) {
-                                    api.errare( 'sek-import input => ajax error', response );
-                                    api.previewer.trigger('sek-notify', {
-                                          notif_id : 'import-failed',
-                                          type : 'error',
-                                          duration : 30000,
-                                          message : [
-                                                '<span>',
-                                                  '<strong>',
-                                                  sektionsLocalizedData.i18n['Import failed, file problem'],
-                                                  '</strong>',
-                                                '</span>'
-                                          ].join('')
-                                    });
-                              })
-                              .always( _doAlwaysAfterImportApiSettingUpdate );//$.ajax()
-                  };//_import()
-
-
-                  // @return a boolean
-                  // server_resp : { success : true, data : {...} }
-                  // check if :
-                  // - server resp is a success
-                  // - the server_response is well formed
-                  var _isImportedContentEligibleForAPI = function( server_resp ) {
-                        var status = true;
-                        // If the setting value is unchanged, no need to go further
-                        // is_local is decided with the input id => @see revision_history input type.
-                        var unserialized_file_content = server_resp.data,
-                            import_success = server_resp.success,
-                            importErrorMsg = null;
-
-                        // PHP generates the export like this:
-                        // $export = array(
-                        //     'data' => sek_get_skoped_seks( $_REQUEST['skope_id'] ),
-                        //     'metas' => array(
-                        //         'skope_id' => $_REQUEST['skope_id'],
-                        //         'version' => NIMBLE_VERSION,
-                        //         // is sent as a string : "__after_header,__before_main_wrapper,loop_start,__before_footer"
-                        //         'active_locations' => is_string( $_REQUEST['active_locations'] ) ? explode( ',', $_REQUEST['active_locations'] ) : array(),
-                        //         'date' => date("Y-m-d")
-                        //     )
-                        // );
-                        // @see sek_maybe_export()
-
-                        //api.infoLog('AJAX SUCCESS file_content ', server_resp, unserialized_file_content );
-                        if ( !import_success ) {
-                             importErrorMsg = [ sektionsLocalizedData.i18n['Import failed'], unserialized_file_content ].join(' : ');
-                        }
-
-                        if ( _.isNull( importErrorMsg ) && ! _.isObject( unserialized_file_content ) ) {
-                              importErrorMsg = sektionsLocalizedData.i18n['Import failed, invalid file content'];
-                        }
-
-                        // Verify that we have the setting value and the import metas
-                        var importSettingValue = unserialized_file_content.data,
-                            importMetas = unserialized_file_content.metas,
-                            imgImporErrors = unserialized_file_content.img_errors;
-
-                        if ( _.isNull( importErrorMsg ) && ! _.isObject( importSettingValue ) ) {
-                              importErrorMsg = sektionsLocalizedData.i18n['Import failed, invalid file content'];
-                        }
-
-                        if ( _.isNull( importErrorMsg ) && ! _.isObject( importMetas ) ) {
-                              importErrorMsg = sektionsLocalizedData.i18n['Import failed, invalid file content'];
-                        }
-
-                        if ( _.isNull( importErrorMsg ) && _.isEqual( api( currentSetId )(), importSettingValue ) ) {
-                              api.infoLog('sek-import input => Setting unchanged');
-                              status = false;
-                        }
-
-                        // bail here if we have an import error msg
-                        if ( !_.isNull( importErrorMsg ) ) {
-                              api.errare('sek-import input => invalid data sent from server', unserialized_file_content );
-                              api.previewer.trigger('sek-notify', {
-                                    notif_id : 'import-failed',
-                                    type : 'error',
-                                    duration : 30000,
-                                    message : [
-                                          '<span>',
-                                            '<strong>',
-                                            importErrorMsg,
-                                            '</strong>',
-                                          '</span>'
-                                    ].join('')
-                              });
-                              status = false;
-                        }
-
-                        // Img importation errors ?
-                        if ( !_.isEmpty( imgImporErrors ) ) {
-                              api.previewer.trigger('sek-notify', {
-                                    notif_id : 'img-import-errors',
-                                    type : 'info',
-                                    duration : 60000,
-                                    message : [
-                                          '<span style="color:#0075a2">',
-                                            [
-                                              '<strong>' + sektionsLocalizedData.i18n['Some image(s) could not be imported'] + '</strong><br/>',
-                                              '<span style="font-size:11px">' + imgImporErrors + '</span>'
-                                            ].join(' : '),
-                                          '</span>'
-                                    ].join('')
-                              });
-                        }
-                        return status;
-                  };
-
-
-
-                  // fired on ajaxrequest done
-                  // At this stage, the server_resp data structure has been validated.
-                  // We can try to the update the api setting
-                  var _doUpdateApiSetting = function( server_resp, params ){
-                        params = params || {};
-                        if ( !_isImportedContentEligibleForAPI( server_resp ) ) {
-                              _doAlwaysAfterImportApiSettingUpdate();
-                              return;
-                        }
-                        // api.infoLog('api.czr_sektions.localSectionsSettingId()?', api.czr_sektions.localSectionsSettingId());
-                        // api.infoLog('inputRegistrationParams.scope ?', inputRegistrationParams.scope );
-
-                        //api.infoLog('TODO => verify metas => version, active locations, etc ... ');
-
-                        // Update the setting api via the normalized method
-                        // the scope will determine the setting id, local or global
-                        api.czr_sektions.updateAPISetting({
-                              action : 'sek-import-from-file',
-                              scope : currentScope,//'global' or 'local'<= will determine which setting will be updated,
-                              // => self.getGlobalSectionsSettingId() or self.localSectionsSettingId()
-                              imported_content : server_resp.data,
-                              assign_missing_locations : params.assign_missing_locations,
-                              keep_existing_sections : 'local' === currentScope ? input.input_parent.czr_Input('keep_existing_sections')() : false
-                        }).done( function() {
-                              // Clean an regenerate the local option setting
-                              // Settings are normally registered once and never cleaned, unlike controls.
-                              // After the import, updating the setting value will refresh the sections
-                              // but the local options, persisted in separate settings, won't be updated if the settings are not cleaned
-                              if ( 'local' === inputRegistrationParams.scope ) {
-                                    api.czr_sektions.generateUI({
-                                          action : 'sek-generate-local-skope-options-ui',
-                                          clean_settings : true//<= see api.czr_sektions.generateUIforLocalSkopeOptions()
-                                    });
-                              }
-
-                              //_notify( sektionsLocalizedData.i18n['The revision has been successfully restored.'], 'success' );
-                              api.previewer.refresh();
-                              api.previewer.trigger('sek-notify', {
-                                    notif_id : 'import-success',
-                                    type : 'success',
-                                    duration : 30000,
-                                    message : [
-                                          '<span>',
-                                            '<strong>',
-                                            sektionsLocalizedData.i18n['File successfully imported'],
-                                            '</strong>',
-                                          '</span>'
-                                    ].join('')
-                              });
-                        }).fail( function( response ) {
-                              api.errare( 'sek-import input => error when firing ::updateAPISetting', response );
-                              api.previewer.trigger('sek-notify', {
-                                    notif_id : 'import-failed',
-                                    type : 'error',
-                                    duration : 30000,
-                                    message : [
-                                          '<span>',
-                                            '<strong>',
-                                            [ sektionsLocalizedData.i18n['Import failed'], response ].join(' : '),
-                                            '</strong>',
-                                          '</span>'
-                                    ].join('')
-                              });
-                        });
-
-                        // Refresh the preview, so the markup is refreshed and the css stylesheet are generated
-                        api.previewer.refresh();
-                  };//_doUpdateApiSetting()
-
-                  var _doAlwaysAfterImportApiSettingUpdate = function() {
-                        api.previewer.send( 'sek-clean-loader', { cleanFullPageLoader : true });
-                        input.container.find('.sek-uploading').hide();
-                        // Clean the file input val
-                        $file_input.val('').trigger('change');
-                        // Close the import dialog
-                        input.container.find('.czr-import-dialog').hide();
-                        // display back the pre import button
-                        $pre_import_button.show();
-                  };
             }//import_export()
       });//$.extend( api.czrInputMap, {})
 })( wp.customize, jQuery, _ );//global sektionsLocalizedData
@@ -13017,58 +14793,133 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                               api.CZRInput.prototype.initialize.call( input, name, options );
                               input.isReady.then( function() {
                                     input.renderUserSavedSections();
-                                    api.czr_sektions.trigger( 'sek-refresh-dragzones', { type : 'preset_section', input_container : input.container } );
+                                    input.attachDomEvents();
                               });
                         },
 
+                        // Ajax fetch the user section collection
+                        // or return the already cached collection
+                        getUserSavedSections : function() {
+                              var _dfd_ = $.Deferred();
+                              if ( !_.isEmpty( api.czr_sektions.userSavedSections ) ) {
+                                    _dfd_.resolve( api.czr_sektions.userSavedSections );
+                              } else {
+                                    api.czr_sektions.getSavedSectionCollection().done( function( sec_collection ) {
+                                           _dfd_.resolve( sec_collection );
+                                    });
+                              }
+                              return _dfd_.promise();
+                        },
 
                         renderUserSavedSections : function() {
                               var input = this,
                                   html = '',
                                   $wrapper = input.container.find('.sek-content-type-wrapper'),
-                                  creation_date = '',
+                                  creation_date = '';
                                   // https://stackoverflow.com/questions/3552461/how-to-format-a-javascript-date
-                                  formatDate = function(date) {
-                                      var monthNames = [
-                                          "January", "February", "March",
-                                          "April", "May", "June", "July",
-                                          "August", "September", "October",
-                                          "November", "December"
-                                      ];
+                                  // formatDate = function(date) {
+                                  //     var monthNames = [
+                                  //         "January", "February", "March",
+                                  //         "April", "May", "June", "July",
+                                  //         "August", "September", "October",
+                                  //         "November", "December"
+                                  //     ];
 
-                                      var day = date.getDate(),
-                                          monthIndex = date.getMonth(),
-                                          year = date.getFullYear(),
-                                          hours = date.getHours(),
-                                          minutes = date.getMinutes(),
-                                          seconds = date.getSeconds();
+                                  //     var day = date.getDate(),
+                                  //         monthIndex = date.getMonth(),
+                                  //         year = date.getFullYear(),
+                                  //         hours = date.getHours(),
+                                  //         minutes = date.getMinutes(),
+                                  //         seconds = date.getSeconds();
 
-                                      return [
-                                            day,
-                                            monthNames[monthIndex],
-                                            year
-                                            //[hours,minutes,seconds].join(':')
-                                      ].join(' ');
-                                  };
+                                  //     return [
+                                  //           day,
+                                  //           monthNames[monthIndex],
+                                  //           year
+                                  //           //[hours,minutes,seconds].join(':')
+                                  //     ].join(' ');
+                                  // };
 
-                              _.each( sektionsLocalizedData.userSavedSektions, function( secData, secKey ) {
-                                    try { creation_date = formatDate( new Date( secData.creation_date.replace( /-/g, '/' ) ) ); } catch( er ) {
-                                          api.errare( '::renderUserSavedSections => formatDate => error', er );
+                              var _refreshUserSectionView = function( sec_collection ) {
+                                    // clean
+                                    $wrapper.find('.sek-user-section-wrapper').remove();
+
+                                    // Write
+                                    if ( _.isEmpty( sec_collection ) ) {
+                                        var _placeholdImgUrl = [ sektionsLocalizedData.baseUrl , '/assets/admin/img/save_section_notice.png',  '?ver=' , sektionsLocalizedData.nimbleVersion ].join('');
+                                          doc_url = 'https://docs.presscustomizr.com/article/417-how-to-save-and-reuse-sections-with-nimble-builder';
+                                        html = [
+                                              '<div class="sek-user-section-wrapper">',
+                                                '<img src="'+ _placeholdImgUrl +'" />',
+                                                '<br/><a href="'+ doc_url +'" target="_blank" rel="noreferrer nofollow">'+ doc_url +'</a>',
+                                              '</div>'
+                                        ].join('');
+                                        $wrapper.append( html );
+                                        input.module.container.find('.czr-item-content .customize-control-title').html('You did not save any section yet.');
+                                    } else {
+                                        var _thumbUrl = [ sektionsLocalizedData.baseUrl , '/assets/admin/img/nb_sec_pholder.png',  '?ver=' , sektionsLocalizedData.nimbleVersion ].join(''),
+                                        styleAttr = 'background: url(' + _thumbUrl  + ') 50% 50% / cover no-repeat;';
+                                        _.each( sec_collection, function( secData, secKey ) {
+                                              // try { creation_date = formatDate( new Date( secData.creation_date.replace( /-/g, '/' ) ) ); } catch( er ) {
+                                              //       api.errare( '::renderUserSavedSections => formatDate => error', er );
+                                              // }
+                                              if( !_.isEmpty( secData.description ) ) {
+                                                  _titleAttr = [ secData.title, secData.last_modified_date, secData.description ].join(' | ');
+                                              } else {
+                                                  _titleAttr = [ secData.title, secData.last_modified_date ].join(' | ');
+                                              }
+                                              html = [
+                                                    '<div class="sek-user-section-wrapper">',
+                                                      '<div draggable="true" data-sek-is-user-section="true" data-sek-section-type="content" data-sek-content-type="preset_section" data-sek-content-id="' + secKey +'" style="" title="' + secData.title + '">',
+                                                        '<div class="sek-sec-thumb" style="'+ styleAttr +'"></div>',//<img src="'+ _thumbUrl +'"/>
+                                                        '<div class="sek-overlay"></div>',
+                                                        '<div class="sek-sec-info" title="'+ _titleAttr +'">',
+                                                          '<h3 class="sec-title">' + secData.title + '</h3>',
+                                                          '<p class="sec-date"><i>' + [ sektionsLocalizedData.i18n['Last modified'], ' : ', secData.last_modified_date ].join(' ') + '</i></p>',
+                                                          '<p class="sec-desc">' + secData.description + '</p>',
+                                                          '<i class="material-icons remove-user-sec" title="'+ sektionsLocalizedData.i18n['Remove this template'] +'">delete_forever</i>',
+                                                          //'<div class="sek-overlay"></div>',
+                                                          //'<div class="sek-saved-section-description">' + secData.description + '</div>',
+                                                          //! _.isEmpty( creation_date ) ? ( '<div class="sek-saved-section-date"><i class="far fa-calendar-alt"></i> @missi18n Created : ' + creation_date + '</div>' ) : '',
+                                                        '</div>',
+                                                      '</div>',
+                                                    '</div>'
+                                              ].join('');
+                                              $wrapper.append( html );
+                                        });//_.each
                                     }
-                                    html = [
-                                          '<div class="sek-user-section-wrapper">',
-                                            '<div class="sek-saved-section-title"><i class="sek-remove-user-section far fa-trash-alt"></i>' + secData.title + '</div>',
-                                            '<div draggable="true" data-sek-is-user-section="true" data-sek-section-type="' + secData.type +'" data-sek-content-type="preset_section" data-sek-content-id="' + secKey +'" style="" title="' + secData.title + '">',
-                                              '<div class="sek-overlay"></div>',
-                                              '<div class="sek-saved-section-description">' + secData.description + '</div>',
-                                              ! _.isEmpty( creation_date ) ? ( '<div class="sek-saved-section-date"><i class="far fa-calendar-alt"></i> @missi18n Created : ' + creation_date + '</div>' ) : '',
-                                            '</div>',
-                                          '</div>'
-                                    ].join('');
-                                    $wrapper.append( html );
+
+                                    // Make section draggable now
+                                    api.czr_sektions.trigger( 'sek-refresh-dragzones', { type : 'preset_section', input_container : input.container } );
+                              };//_refreshUserSectionView
+
+                              // on input instantiation, render the collection
+                              input.getUserSavedSections().done( function( sec_collection ) {
+                                    _refreshUserSectionView( sec_collection );
+                              });
+
+                              // when the collection is modified : save, update, remove actions => NB refreshes the collection
+                              api.czr_sektions.allSavedSections.bind( function( sec_collection ) {
+                                    _refreshUserSectionView( sec_collection );
+                              });
+                        },//renderUserSavedSections
+
+                        // with delegation
+                        attachDomEvents : function() {
+                              // Attach events
+                              this.container.on('click', '.sek-sec-info .remove-user-sec', function(evt) {
+                                    evt.preventDefault();
+                                    var self = api.czr_sektions;
+                                    var _focusOnRemoveCandidate = function( mode ) {
+                                          self.saveSectionDialogMode( 'remove' );
+                                          // self unbind
+                                          self.saveSectionDialogMode.unbind( _focusOnRemoveCandidate );
+                                    };
+                                    self.saveSectionDialogMode.bind( _focusOnRemoveCandidate );
+                                    self.saveSectionDialogVisible(true);
                               });
                         }
-                  });
+                  });//module.inputConstructor
 
                   // run the parent initialize
                   // Note : must be always invoked always after the input / item class extension
@@ -13076,7 +14927,7 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                   api.CZRDynModule.prototype.initialize.call( module, id, options );
 
                   // module.embedded.then( function() {
-                  //       console.log('MODULE READY=> lets dance',  module.container,  module.container.find('.sek-content-type-wrapper') );
+                  //       console.log('MODULE READY=> lets dance',  module.container,  module.container.find('.sek-ctrl-accordion-title') );
                   // });
             },//initialize
       };
@@ -13091,19 +14942,17 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
       //    If not multi item, the single item content is rendered as soon as the item wrapper is rendered.
       //4) some DOM behaviour. For example, a multi item shall be sortable.
       api.czrModuleMap = api.czrModuleMap || {};
-      if ( sektionsLocalizedData.isSavedSectionEnabled ) {
-            $.extend( api.czrModuleMap, {
-                  sek_my_sections_sec_picker_module : {
-                        mthds : Constructor,
-                        crud : false,
-                        name : api.czr_sektions.getRegisteredModuleProperty( 'sek_my_sections_sec_picker_module', 'name' ),
-                        has_mod_opt : false,
-                        ready_on_section_expanded : false,
-                        ready_on_control_event : 'sek-accordion-expanded',// triggered in ::scheduleModuleAccordion()
-                        defaultItemModel : api.czr_sektions.getDefaultItemModelFromRegisteredModuleData( 'sek_my_sections_sec_picker_module' )
-                  },
-            });
-      }
+      $.extend( api.czrModuleMap, {
+            sek_my_sections_sec_picker_module : {
+                  mthds : Constructor,
+                  crud : false,
+                  name : api.czr_sektions.getRegisteredModuleProperty( 'sek_my_sections_sec_picker_module', 'name' ),
+                  has_mod_opt : false,
+                  ready_on_section_expanded : false,
+                  ready_on_control_event : 'sek-accordion-expanded',// triggered in ::scheduleModuleAccordion()
+                  defaultItemModel : api.czr_sektions.getDefaultItemModelFromRegisteredModuleData( 'sek_my_sections_sec_picker_module' )
+            },
+      });
 })( wp.customize , jQuery, _ );
 //global sektionsLocalizedData, serverControlParams
 //extends api.CZRDynModule
@@ -16145,9 +17994,9 @@ var CZRSeksPrototype = CZRSeksPrototype || {};
                                             });
                                       break;
                                       case 'display_pagination' :
-                                            _.each( [ 'posts_per_page' ] , function( _inputId_ ) {
+                                            _.each( [ 'posts_per_page', 'post_number' ] , function( _inputId_ ) {
                                                   try { api.czr_sektions.scheduleVisibilityOfInputId.call( input, _inputId_, function() {
-                                                        return input();
+                                                        return 'posts_per_page' === _inputId_ ? input() : !input();
                                                   }); } catch( er ) {
                                                         api.errare( module.module_type + ' => error in setInputVisibilityDeps', er );
                                                   }

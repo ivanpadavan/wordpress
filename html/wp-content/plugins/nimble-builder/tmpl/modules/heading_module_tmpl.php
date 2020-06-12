@@ -1,7 +1,7 @@
 <?php
 /* Developers : you can override this template from a theme with a file that has this path : 'nimble_templates/modules/{original-module-template-file-name}.php' */
 namespace Nimble;
-if ( ! defined( 'ABSPATH' ) ) {
+if ( !defined( 'ABSPATH' ) ) {
     exit;
 }
 $model = Nimble_Manager()->model;
@@ -12,7 +12,7 @@ $value = $value['main_settings'];
 // Utility to print the text content generated with tinyMce
 // should be wrapped in a specific selector when customizing,
 //  => so we can listen to user click actions and open the editor on for each separate tiny_mce_editor input
-if ( ! function_exists( 'Nimble\sek_print_text_heading_content' ) ) {
+if ( !function_exists( 'Nimble\sek_print_text_heading_content' ) ) {
     function sek_print_text_heading_content( $heading_content, $input_id, $module_model, $echo = false ) {
         if ( empty( $heading_content ) ) {
             $to_print = Nimble_Manager()->sek_get_input_placeholder_content( 'text', $input_id );
@@ -22,6 +22,7 @@ if ( ! function_exists( 'Nimble\sek_print_text_heading_content' ) ) {
             // because of potential third party plugins corrupting 'the_content' filter. https://github.com/presscustomizr/nimble-builder/issues/233
             remove_filter( 'the_nimble_tinymce_module_content', 'wpautop');
             $heading_content = apply_filters( 'the_nimble_tinymce_module_content', $heading_content );
+            $heading_content = sek_strip_script_tags($heading_content);
             add_filter( 'the_nimble_tinymce_module_content', 'wpautop');
             if ( skp_is_customizing() ) {
                 $to_print = sprintf('<div title="%3$s" data-sek-input-type="textarea" data-sek-input-id="%1$s">%2$s</div>', $input_id, $heading_content, __( 'Click to edit', 'nimble-builder' ) );
@@ -38,18 +39,18 @@ if ( ! function_exists( 'Nimble\sek_print_text_heading_content' ) ) {
     }
 }
 
-if ( ! function_exists( 'Nimble\sek_get_heading_module_link') ) {
+if ( !function_exists( 'Nimble\sek_get_heading_module_link') ) {
     function sek_get_heading_module_link( $value ) {
         $link = 'javascript:void(0);';
         // if ( skp_is_customizing() ) {
         //     return $link;
         // }
         if ( true === sek_booleanize_checkbox_val( $value['link-to'] ) ) {
-            if ( ! empty( $value['link-pick-url'] ) && ! empty( $value['link-pick-url']['id'] ) ) {
-                if ( '_custom_' == $value['link-pick-url']['id']  && ! empty( $value['link-custom-url'] ) ) {
+            if ( !empty( $value['link-pick-url'] ) && !empty( $value['link-pick-url']['id'] ) ) {
+                if ( '_custom_' == $value['link-pick-url']['id']  && !empty( $value['link-custom-url'] ) ) {
                     $custom_url = apply_filters( 'nimble_parse_template_tags', $value['link-custom-url'] );
                     $link = esc_url( $custom_url );
-                } else if ( ! empty( $value['link-pick-url']['url'] ) ) {
+                } else if ( !empty( $value['link-pick-url']['url'] ) ) {
                     $link = esc_url( $value['link-pick-url']['url'] );
                 }
             }

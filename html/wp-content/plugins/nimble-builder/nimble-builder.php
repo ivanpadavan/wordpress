@@ -3,20 +3,20 @@
 * Plugin Name: Nimble Page Builder
 * Plugin URI: https://nimblebuilder.com
 * Description: Powerful drag and drop page builder using the native WordPress customizer.
-* Version: 2.0.4
+* Version: 2.1.0
 * Text Domain: nimble-builder
 * Author: Press Customizr
 * Author URI: https://nimblebuilder.com/?utm_source=wp-plugins&utm_medium=wp-dashboard&utm_campaign=author-uri
 * License: GPLv3
 * License URI: https://www.gnu.org/licenses/gpl-3.0.html
 */
-if ( ! defined( 'ABSPATH' ) ) {
+if ( !defined( 'ABSPATH' ) ) {
   exit;
 }
 /* ------------------------------------------------------------------------- *
  *  CONSTANTS
 /* ------------------------------------------------------------------------- */
-$current_version = "2.0.4";
+$current_version = "2.1.0";
 
 if ( !defined( "NIMBLE_VERSION" ) ) { define( "NIMBLE_VERSION", $current_version ); }
 if ( !defined( 'NIMBLE_DIR_NAME' ) ) { define( 'NIMBLE_DIR_NAME' , basename( dirname( __FILE__ ) ) ); }
@@ -26,8 +26,6 @@ if ( !defined( 'NIMBLE_MIN_PHP_VERSION' ) ) { define ( 'NIMBLE_MIN_PHP_VERSION',
 if ( !defined( 'NIMBLE_MIN_WP_VERSION' ) ) { define ( 'NIMBLE_MIN_WP_VERSION', '4.7' ); }
 if ( !defined( 'NIMBLE_PLUGIN_FILE' ) ) { define( 'NIMBLE_PLUGIN_FILE', __FILE__ ); }// Plugin Root File used register_activation_hook( NIMBLE_PLUGIN_FILE, 'nimble_install' );
 
-// Note : NIMBLE_SAVED_SECTIONS_ENABLED and NIMBLE_BETA_FEATURES_ENABLED can be defined in wp_config.php !
-if ( !defined( 'NIMBLE_SAVED_SECTIONS_ENABLED' ) ) { define ( 'NIMBLE_SAVED_SECTIONS_ENABLED', false ); }
 if ( !defined( 'NIMBLE_BETA_FEATURES_ENABLED' ) ) { define ( 'NIMBLE_BETA_FEATURES_ENABLED', false ); }
 
 if ( !defined( 'NIMBLE_SHOW_UPDATE_NOTICE_FOR_VERSION' ) ) { define( 'NIMBLE_SHOW_UPDATE_NOTICE_FOR_VERSION', '1.8.3' ); }
@@ -35,6 +33,10 @@ if ( !defined( 'NIMBLE_RELEASE_NOTE_URL' ) ) { define( 'NIMBLE_RELEASE_NOTE_URL'
 
 // when NIMBLE_IS_PREVIEW_UI_DEBUG_MODE or $_GET['preview_ui_debug'] is true, the levels UI in the preview are not being auto removed, so we can inspect the markup and CSS
 if ( !defined( 'NIMBLE_IS_PREVIEW_UI_DEBUG_MODE' ) ) { define ( 'NIMBLE_IS_PREVIEW_UI_DEBUG_MODE', false ); }
+
+// Admin page
+if ( !defined( 'NIMBLE_OPTIONS_PAGE' ) ) { define ( 'NIMBLE_OPTIONS_PAGE', 'nb-options' ); }
+if ( !defined( 'NIMBLE_OPTIONS_PAGE_URL' ) ) { define ( 'NIMBLE_OPTIONS_PAGE_URL', 'options-general.php?page=' . NIMBLE_OPTIONS_PAGE ); }
 
 /* ------------------------------------------------------------------------- *
  *  CHECK PHP AND WP REQUIREMENTS
@@ -51,7 +53,7 @@ if ( version_compare( $wp_version, NIMBLE_MIN_WP_VERSION, '<' ) ) {
 
 function nimble_pass_requirements(){
   global $wp_version;
-  return ! version_compare( phpversion(), NIMBLE_MIN_PHP_VERSION, '<' ) && ! version_compare( $wp_version, NIMBLE_MIN_WP_VERSION, '<' );
+  return !version_compare( phpversion(), NIMBLE_MIN_PHP_VERSION, '<' ) && !version_compare( $wp_version, NIMBLE_MIN_WP_VERSION, '<' );
 }
 
 function nimble_display_min_php_message() {
@@ -75,7 +77,7 @@ function nimble_display_min_requirement_notice( $requires_what, $requires_what_v
 /* ------------------------------------------------------------------------- */
 add_action( 'after_setup_theme', 'nimble_load_czr_base_fmk', 10 );
 function nimble_load_czr_base_fmk() {
-    if ( ! nimble_pass_requirements() )
+    if ( !nimble_pass_requirements() )
       return;
     if ( did_action( 'nimble_base_fmk_loaded' ) ) {
         if ( ( defined( 'CZR_DEV' ) && CZR_DEV ) || ( defined( 'NIMBLE_DEV' ) && NIMBLE_DEV ) ) {
@@ -105,6 +107,8 @@ if ( nimble_pass_requirements() ) {
     }
 
     require_once( NIMBLE_BASE_PATH . '/inc/sektions/ccat-constants-and-helper-functions.php' );
+    require_once( NIMBLE_BASE_PATH . '/inc/sektions/ccat-sektions-ui-modules.php' );
+    require_once( NIMBLE_BASE_PATH . '/inc/sektions/ccat-sektions-front-modules.php' );
     require_once( NIMBLE_BASE_PATH . '/inc/sektions/ccat-sektions-base.php' );
 
     // $_POST['ac_get_template'] <= scenario of an input template getting ajaxily fetched
@@ -136,7 +140,7 @@ if ( nimble_pass_requirements() ) {
 
     // @return void()
     function nimble_register_location( $location, $params = array() ) {
-        if ( empty( $location ) || ! is_string( $location ) )
+        if ( empty( $location ) || !is_string( $location ) )
           return;
         \Nimble\register_location( $location, $params );
     }
@@ -156,5 +160,6 @@ if ( nimble_pass_requirements() ) {
     // Load admin
     if ( is_admin() ) {
         require_once( NIMBLE_BASE_PATH . '/inc/admin/nimble-admin.php' );
+        do_action('nimble_admin_loaded');
     }
 }//if ( nimble_pass_requirements() )

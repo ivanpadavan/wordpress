@@ -1,6 +1,17 @@
 <?php
 namespace Nimble;
-if ( ! defined( 'ABSPATH' ) ) exit;
+if ( !defined( 'ABSPATH' ) ) exit;
+
+
+/* ------------------------------------------------------------------------- *
+*  OPTION PAGE
+/* ------------------------------------------------------------------------- */
+require_once( NIMBLE_BASE_PATH . '/inc/admin/nb-options.php' );
+
+
+/* ------------------------------------------------------------------------- *
+*  VERSIONNING
+/* ------------------------------------------------------------------------- */
 add_action( 'plugins_loaded', '\Nimble\sek_versionning');
 function sek_versionning() {
     $current_version = get_option( 'nimble_version' );
@@ -17,208 +28,27 @@ function sek_versionning() {
         update_option( 'nimble_start_date', date("Y-m-d H:i:s") );
     }
 }
+
+
+/* ------------------------------------------------------------------------- *
+*  SYSTEM INFO ( May 2020 => moved in a tab in the new options page )
+/* ------------------------------------------------------------------------- */
 add_action('admin_menu', '\Nimble\sek_plugin_menu');
 function sek_plugin_menu() {
-    if ( ! current_user_can( 'update_plugins' ) )
+    if ( !current_user_can( 'update_plugins' ) || !sek_current_user_can_access_nb_ui() )
       return;
     add_plugins_page(__( 'System info', 'nimble-builder' ), __( 'System info', 'nimble-builder' ), 'read', 'nimble-builder', '\Nimble\sek_plugin_page');
 }
-
-function sek_plugin_page() {
-    ?>
-    <div class="wrap">
-      <h3><?php _e( 'System Informations', 'nimble-builder' ); ?></h3>
-      <h4 style="text-align: left"><?php _e( 'Please include your system informations when posting support requests.' , 'nimble-builder' ) ?></h4>
-      <textarea readonly="readonly" onclick="this.focus();this.select()" id="system-info-textarea" name="tc-sysinfo" title="<?php _e( 'To copy the system info, click below then press Ctrl + C (PC) or Cmd + C (Mac).', 'nimble-builder' ); ?>" style="width: 800px;min-height: 800px;font-family: Menlo,Monaco,monospace;background: 0 0;white-space: pre;overflow: auto;display:block;"><?php echo sek_config_infos(); ?></textarea>
-    </div>
-    <?php
-}
-
-
-
-
-
-/**
- * Get system info
- * Inspired by the system infos page for Easy Digital Download plugin
- * @return      string $return A string containing the info to output
- */
-function sek_config_infos() {
-    global $wpdb;
-
-    if ( !class_exists( 'Browser' ) ) {
-        require_once( NIMBLE_BASE_PATH . '/inc/libs/browser.php' );
+add_action( 'admin_init' , '\Nimble\sek_redirect_system_info' );
+function sek_redirect_system_info() {
+    if ( isset( $_GET['page'] ) && 'nimble-builder' === $_GET['page'] ) {
+        wp_safe_redirect( urldecode( admin_url( NIMBLE_OPTIONS_PAGE_URL . '&tab=system-info' ) ) );
+        exit;
     }
-
-    $browser = new \Browser();
-    $theme_data   = wp_get_theme();
-    $theme        = $theme_data->Name . ' ' . $theme_data->Version;
-    $parent_theme = $theme_data->Template;
-    if ( ! empty( $parent_theme ) ) {
-      $parent_theme_data = wp_get_theme( $parent_theme );
-      $parent_theme      = $parent_theme_data->Name . ' ' . $parent_theme_data->Version;
-    }
-
-    $return  = '### Begin System Info (Generated ' . date( 'Y-m-d H:i:s' ) . ') ###' . "";
-    $return .= "\n" .'------------ SITE INFO' . "\n";
-    $return .= 'Site URL:                 ' . site_url() . "\n";
-    $return .= 'Home URL:                 ' . home_url() . "\n";
-    $return .= 'Multisite:                ' . ( is_multisite() ? 'Yes' : 'No' ) . "\n";
-    $return .= "\n\n" . '------------ USER BROWSER' . "\n";
-    $return .= $browser;
-
-    $locale = get_locale();
-    $return .= "\n\n" . '------------ WORDPRESS CONFIG' . "\n";
-    $return .= 'WP Version:               ' . get_bloginfo( 'version' ) . "\n";
-    $return .= 'Language:                 ' . ( !empty( $locale ) ? $locale : 'en_US' ) . "\n";
-    $return .= 'Permalink Structure:      ' . ( get_option( 'permalink_structure' ) ? get_option( 'permalink_structure' ) : 'Default' ) . "\n";
-    $return .= 'Active Theme:             ' . $theme . "\n";
-    if ( $parent_theme !== $theme ) {
-      $return .= 'Parent Theme:             ' . $parent_theme . "\n";
-    }
-    $return .= 'Show On Front:            ' . get_option( 'show_on_front' ) . "\n";
-    if( get_option( 'show_on_front' ) == 'page' ) {
-      $front_page_id = get_option( 'page_on_front' );
-      $blog_page_id = get_option( 'page_for_posts' );
-
-      $return .= 'Page On Front:            ' . ( $front_page_id != 0 ? get_the_title( $front_page_id ) . ' (#' . $front_page_id . ')' : 'Unset' ) . "\n";
-      $return .= 'Page For Posts:           ' . ( $blog_page_id != 0 ? get_the_title( $blog_page_id ) . ' (#' . $blog_page_id . ')' : 'Unset' ) . "\n";
-    }
-
-    $return .= 'ABSPATH:                  ' . ABSPATH . "\n";
-
-    $return .= 'WP_DEBUG:                 ' . ( defined( 'WP_DEBUG' ) ? WP_DEBUG ? 'Enabled' : 'Disabled' : 'Not set' ) . "\n";
-    $return .= 'WP Memory Limit:          ' . ( sek_let_to_num( WP_MEMORY_LIMIT )/( 1024 ) ) ."MB" . "\n";
-    $return .= "\n\n" . '------------ NIMBLE CONFIGURATION' . "\n";
-    $return .= 'Version:                  ' . NIMBLE_VERSION . "\n";
-    $return .= 'Upgraded From:            ' . get_option( 'nimble_version_upgraded_from', 'None' ) . "\n";
-    $return .= 'Started With:             ' . get_option( 'nimble_started_with_version', 'None' ) . "\n";
-    $updates = get_plugin_updates();
-    $muplugins = get_mu_plugins();
-    if( count( $muplugins ) > 0 ) {
-      $return .= "\n\n" . '------------ MU PLUGINS' . "\n";
-
-      foreach( $muplugins as $plugin => $plugin_data ) {
-        $return .= $plugin_data['Name'] . ': ' . $plugin_data['Version'] . "\n";
-      }
-    }
-    $return .= "\n\n" . '------------ WP ACTIVE PLUGINS' . "\n";
-
-    $plugins = get_plugins();
-    $active_plugins = get_option( 'active_plugins', array() );
-
-    foreach( $plugins as $plugin_path => $plugin ) {
-      if( !in_array( $plugin_path, $active_plugins ) )
-        continue;
-
-      $update = ( array_key_exists( $plugin_path, $updates ) ) ? ' (needs update - ' . $updates[$plugin_path]->update->new_version . ')' : '';
-      $return .= $plugin['Name'] . ': ' . $plugin['Version'] . $update . "\n";
-    }
-    $return .= "\n\n" . '------------ WP INACTIVE PLUGINS' . "\n";
-
-    foreach( $plugins as $plugin_path => $plugin ) {
-      if( in_array( $plugin_path, $active_plugins ) )
-        continue;
-
-      $update = ( array_key_exists( $plugin_path, $updates ) ) ? ' (needs update - ' . $updates[$plugin_path]->update->new_version . ')' : '';
-      $return .= $plugin['Name'] . ': ' . $plugin['Version'] . $update . "\n";
-    }
-
-    if( is_multisite() ) {
-      $return .= "\n\n" . '------------ NETWORK ACTIVE PLUGINS' . "\n";
-
-      $plugins = wp_get_active_network_plugins();
-      $active_plugins = get_site_option( 'active_sitewide_plugins', array() );
-
-      foreach( $plugins as $plugin_path ) {
-        $plugin_base = plugin_basename( $plugin_path );
-
-        if( !array_key_exists( $plugin_base, $active_plugins ) )
-          continue;
-
-        $update = ( array_key_exists( $plugin_path, $updates ) ) ? ' (needs update - ' . $updates[$plugin_path]->update->new_version . ')' : '';
-        $plugin  = get_plugin_data( $plugin_path );
-        $return .= $plugin['Name'] . ': ' . $plugin['Version'] . $update . "\n";
-      }
-    }
-    $return .= "\n\n" . '------------ WEBSERVER CONFIG' . "\n";
-    $return .= 'PHP Version:              ' . PHP_VERSION . "\n";
-    $return .= 'MySQL Version:            ' . $wpdb->db_version() . "\n";
-    $return .= 'Webserver Info:           ' . $_SERVER['SERVER_SOFTWARE'] . "\n";
-    $return .= 'Writing Permissions:      ' . sek_get_write_permissions_status() . "\n";
-    $return .= "\n\n" . '------------ PHP CONFIG' . "\n";
-    $return .= 'Memory Limit:             ' . ini_get( 'memory_limit' ) . "\n";
-    $return .= 'Upload Max Size:          ' . ini_get( 'upload_max_filesize' ) . "\n";
-    $return .= 'Post Max Size:            ' . ini_get( 'post_max_size' ) . "\n";
-    $return .= 'Upload Max Filesize:      ' . ini_get( 'upload_max_filesize' ) . "\n";
-    $return .= 'Time Limit:               ' . ini_get( 'max_execution_time' ) . "\n";
-    $return .= 'Max Input Vars:           ' . ini_get( 'max_input_vars' ) . "\n";
-    $return .= 'Display Errors:           ' . ( ini_get( 'display_errors' ) ? 'On (' . ini_get( 'display_errors' ) . ')' : 'N/A' ) . "\n";
-    $return .= 'PHP Arg Separator:        ' . ini_get( 'arg_separator.output' ) . "\n";
-    $return .= 'PHP Allow URL File Open:  ' . ini_get( 'allow_url_fopen' ) . "\n";
-
-    $return .= "\n\n" . '### End System Info ###';
-
-    return $return;
-}
-
-
-/**
- * Does Size Conversions
- */
-function sek_let_to_num( $v ) {
-    $l   = substr( $v, -1 );
-    $ret = substr( $v, 0, -1 );
-
-    switch ( strtoupper( $l ) ) {
-      case 'P': // fall-through
-      case 'T': // fall-through
-      case 'G': // fall-through
-      case 'M': // fall-through
-      case 'K': // fall-through
-        $ret *= 1024;
-        break;
-      default:
-        break;
-    }
-    return $ret;
-}
-
-
-
-function sek_get_write_permissions_status() {
-    $permission_issues = array();
-    $writing_path_candidates = array();
-    $wp_upload_dir = wp_upload_dir();
-    if ( $wp_upload_dir['error'] ) {
-        $permission_issues[] = 'WordPress root uploads folder';
-    }
-
-    $nimble_css_folder_path = $wp_upload_dir['basedir'] . '/' . NIMBLE_CSS_FOLDER_NAME;
-
-    if ( is_dir( $nimble_css_folder_path ) ) {
-        $writing_path_candidates[ $nimble_css_folder_path ] = 'Nimble uploads folder';
-    }
-    $writing_path_candidates[ ABSPATH ] = 'WP root directory';
-
-    foreach ( $writing_path_candidates as $dir => $description ) {
-        if ( ! is_writable( $dir ) ) {
-            $permission_issues[] = $description;
-        }
-    }
-
-    if ( $permission_issues ) {
-        $message = 'NOK => issues with : ';
-        $message .= implode( ' and ', $permission_issues );
-    } else {
-        $message = 'OK';
-    }
-
-    return $message;
 }
 add_action( 'admin_init' , '\Nimble\sek_admin_style' );
 function sek_admin_style() {
-    if ( skp_is_customizing() )
+    if ( skp_is_customizing() || !sek_current_user_can_access_nb_ui() )
       return;
     wp_enqueue_style(
         'nimble-admin-css',
@@ -231,6 +61,10 @@ function sek_admin_style() {
         NIMBLE_ASSETS_VERSION,
         'all'
     );
+}
+/* beautify admin notice text using some defaults the_content filter callbacks */
+foreach ( array( 'wptexturize', 'convert_smilies' ) as $callback ) {
+    add_filter( 'nimble_parse_admin_text', $callback );
 }
 add_action( 'admin_notices'                         , '\Nimble\sek_may_be_display_update_notice');
 add_action( 'wp_ajax_dismiss_nimble_update_notice'  ,  '\Nimble\sek_dismiss_update_notice_action' );
@@ -246,14 +80,17 @@ foreach ( array( 'wptexturize', 'convert_smilies', 'wpautop') as $callback ) {
 function sek_may_be_display_update_notice() {
     if ( defined('NIMBLE_SHOW_UPDATE_NOTICE_FOR_VERSION') && NIMBLE_SHOW_UPDATE_NOTICE_FOR_VERSION !== NIMBLE_VERSION )
       return;
-    if ( ! sek_welcome_notice_is_dismissed() )
+
+    if ( !sek_current_user_can_access_nb_ui() )
+      return;
+    if ( !sek_welcome_notice_is_dismissed() )
       return;
 
     $last_update_notice_values  = get_option( 'nimble_last_update_notice' );
     $show_new_notice = false;
     $display_ct = 5;
 
-    if ( ! $last_update_notice_values || ! is_array($last_update_notice_values) ) {
+    if ( !$last_update_notice_values || !is_array($last_update_notice_values) ) {
         $last_update_notice_values = array( "version" => NIMBLE_VERSION, "display_count" => 0 );
         update_option( 'nimble_last_update_notice', $last_update_notice_values );
         if ( sek_user_started_before_version( NIMBLE_VERSION ) ) {
@@ -276,7 +113,7 @@ function sek_may_be_display_update_notice() {
         }//end else
     }//end if
 
-    if ( ! $show_new_notice )
+    if ( !$show_new_notice )
       return;
 
     ob_start();
@@ -357,10 +194,6 @@ function sek_dismiss_update_notice_action() {
     update_option( 'nimble_last_update_notice', $new_val );
     wp_die( 1 );
 }
-/* beautify admin notice text using some defaults the_content filter callbacks */
-foreach ( array( 'wptexturize', 'convert_smilies' ) as $callback ) {
-    add_filter( 'nimble_update_notice', $callback );
-}
 function sek_welcome_notice_is_dismissed() {
     $dismissed = get_user_meta( get_current_user_id(), 'dismissed_wp_pointers', true );
     $dismissed_array = array_filter( explode( ',', (string) $dismissed ) );
@@ -371,12 +204,15 @@ function sek_welcome_notice_is_dismissed() {
 
 add_action( 'admin_notices', '\Nimble\sek_render_welcome_notice' );
 function sek_render_welcome_notice() {
-    if ( ! current_user_can( 'customize' ) )
+    if ( !current_user_can( 'customize' ) )
       return;
-
+    if ( !sek_current_user_can_access_nb_ui() )
+      return;
     if ( sek_welcome_notice_is_dismissed() )
       return;
-    if ( sek_site_has_nimble_sections_created() && ! ( defined('NIMBLE_DEV') && NIMBLE_DEV ) ) {
+    if ( isset($_GET['page']) && NIMBLE_OPTIONS_PAGE === $_GET['page'] )
+      return;
+    if ( sek_site_has_nimble_sections_created() && !( defined('NIMBLE_DEV') && NIMBLE_DEV ) ) {
         $dismissed = get_user_meta( get_current_user_id(), 'dismissed_wp_pointers', true );
         $dismissed_array = array_filter( explode( ',', (string) $dismissed ) );
         $dismissed_array[] = NIMBLE_WELCOME_NOTICE_ID;
@@ -388,37 +224,7 @@ function sek_render_welcome_notice() {
     ?>
     <div class="nimble-welcome-notice notice notice-info is-dismissible" id="<?php echo esc_attr( $notice_id ); ?>">
       <div class="notice-dismiss"></div>
-      <div class="nimble-welcome-icon-holder">
-        <img class="nimble-welcome-icon" src="<?php echo NIMBLE_BASE_URL.'/assets/img/nimble/nimble_banner.svg?ver='.NIMBLE_VERSION; ?>" alt="<?php esc_html_e( 'Nimble Builder', 'nimble-builder' ); ?>" />
-      </div>
-      <h1><?php echo apply_filters( 'nimble_update_notice', __('Welcome to Nimble Builder for WordPress :D', 'nimble-builder' ) ); ?></h1>
-      <h3><?php _e( 'Nimble allows you to drag and drop content modules, or pre-built section templates, into <u>any context</u> of your site, including search results or 404 pages. You can edit your pages in <i>real time</i> from the live customizer, and then publish when you are happy of the result, or save for later.', 'nimble-builder' ); ?></h3>
-      <h3><?php _e( 'The plugin automatically creates fluid and responsive sections for a pixel-perfect rendering on smartphones and tablets, without the need to add complex code.', 'nimble-builder' ); ?></h3>
-      <h3><?php _e( 'Nimble Builder takes the native WordPress customizer to a level you\'ve never seen before.', 'nimble-builder' ); ?></h3>
-      <?php printf( '<a href="%1$s" target="_blank" class="button button-primary button-hero"><span class="dashicons dashicons-admin-appearance"></span> %2$s</a>',
-          esc_url( add_query_arg(
-              array(
-                array( 'autofocus' => array( 'section' => '__content_picker__' ) ),
-                'return' => urlencode( remove_query_arg( wp_removable_query_args(), wp_unslash( $_SERVER['REQUEST_URI'] ) ) )
-              ),
-              admin_url( 'customize.php' )
-          ) ),
-          __( 'Start creating content in live preview', 'nimble-builder' )
-      ); ?>
-      <div class="nimble-link-to-doc">
-        <?php printf( '<div class="nimble-doc-link-wrap">%1$s <a href="%2$s" target="_blank" class="">%3$s</a>.</div>',
-            __('Or', 'nimble-builder'),
-            add_query_arg(
-                array(
-                  'utm_source' => 'usersite',
-                  'utm_medium' => 'link',
-                  'utm_campaign' => 'nimble-welcome-notice'
-                ),
-                'https://docs.presscustomizr.com/article/337-getting-started-with-the-nimble-builder-plugin'
-            ),
-            __( 'read the getting started guide', 'nimble-builder' )
-        ); ?>
-      </div>
+      <?php sek_get_welcome_block(); ?>
     </div>
 
     <script>
@@ -431,47 +237,48 @@ function sek_render_welcome_notice() {
       } );
     } );
     </script>
-    <style type="text/css">
-      .nimble-welcome-notice {
-        padding: 38px;
-      }
-      .nimble-welcome-notice .dashicons {
-        line-height: 44px;
-      }
-      .nimble-welcome-icon-holder {
-        width: 550px;
-        height: 200px;
-        float: left;
-        margin: 0 38px 38px 0;
-      }
-      .nimble-welcome-icon {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
-      .nimble-welcome-notice h1 {
-        font-weight: bold;
-      }
-      .nimble-welcome-notice h3 {
-        font-size: 16px;
-        font-weight: 500;
-      }
-      .nimble-link-to-doc {
-        position: relative;
-        display: inline-block;
-        width: 200px;
-        height: 46px;
-      }
-      .nimble-link-to-doc .nimble-doc-link-wrap {
-        position: absolute;
-        bottom: 0;
-      }
-
-    </style>
     <?php
+}
+function sek_get_welcome_block() {
+  ?>
+  <div class="nimble-welcome-icon-holder">
+    <img class="nimble-welcome-icon" src="<?php echo NIMBLE_BASE_URL.'/assets/img/nimble/nimble_banner.svg?ver='.NIMBLE_VERSION; ?>" alt="<?php esc_html_e( 'Nimble Builder', 'nimble-builder' ); ?>" />
+  </div>
+  <h1><?php echo apply_filters( 'nimble_parse_admin_text', __('Welcome to Nimble Builder for WordPress :D', 'nimble-builder' ) ); ?></h1>
+
+    <p><?php _e( 'Nimble allows you to drag and drop content modules, or pre-built section templates, into <u>any context</u> of your site, including search results or 404 pages. You can edit your pages in <i>real time</i> from the live customizer, and then publish when you are happy of the result, or save for later.', 'nimble-builder' ); ?></p>
+    <p><?php _e( 'The plugin automatically creates fluid and responsive sections for a pixel-perfect rendering on smartphones and tablets, without the need to add complex code.', 'nimble-builder' ); ?></p>
+    <?php printf( '<a href="%1$s" target="_blank" class="button button-primary button-hero"><span class="dashicons dashicons-admin-appearance"></span> %2$s</a>',
+        esc_url( add_query_arg(
+            array(
+              array( 'autofocus' => array( 'section' => '__content_picker__' ) ),
+              'return' => urlencode( remove_query_arg( wp_removable_query_args(), wp_unslash( $_SERVER['REQUEST_URI'] ) ) )
+            ),
+            admin_url( 'customize.php' )
+        ) ),
+        __( 'Start creating content in live preview', 'nimble-builder' )
+    ); ?>
+    <div class="nimble-link-to-doc">
+      <?php printf( '<div class="nimble-doc-link-wrap">%1$s <a href="%2$s" target="_blank" class="">%3$s</a>.</div>',
+          __('Or', 'nimble-builder'),
+          add_query_arg(
+              array(
+                'utm_source' => 'usersite',
+                'utm_medium' => 'link',
+                'utm_campaign' => 'nimble-welcome-notice'
+              ),
+              'https://docs.presscustomizr.com/article/337-getting-started-with-the-nimble-builder-plugin'
+          ),
+          __( 'read the getting started guide', 'nimble-builder' )
+      ); ?>
+    </div>
+
+  <?php
 }
 add_action( 'wp_dashboard_setup', '\Nimble\sek_register_dashboard_widgets' );
 function sek_register_dashboard_widgets() {
+    if ( !sek_current_user_can_access_nb_ui() )
+      return;
     $theme_name = sek_get_parent_theme_slug();
     $title = __( 'Nimble Builder Overview', 'nimble-builder' );
     wp_add_dashboard_widget(
@@ -514,7 +321,7 @@ function sek_nimble_dashboard_callback_fn() {
           __( 'Start building', 'nimble-builder' )
       ); ?>
       </div>
-      <?php if ( ! empty( $post_data ) ) : ?>
+      <?php if ( !empty( $post_data ) ) : ?>
         <div class="nimble-post-list">
           <h3 class="nimble-post-list-title"><?php echo __( 'News & release notes', 'nimble-builder' ); ?></h3>
           <ul class="nimble-collection">
@@ -571,10 +378,16 @@ function sek_nimble_dashboard_callback_fn() {
 }
 function sek_is_forbidden_post_type_for_nimble_edit_button( $post_type = '' ) {
     $post_type_obj = get_post_type_object( $post_type );
+    $authorized_post_types = apply_filters( 'nimble-authorized-post-types' , array( 'post', 'page', 'product', 'attachment' ) );
+    if ( is_string($post_type) && !in_array($post_type, $authorized_post_types) )
+      return true;
+
     return is_object($post_type_obj) && true !== $post_type_obj->public;
 }
 add_action( 'edit_form_after_title', '\Nimble\sek_print_edit_with_nimble_btn_for_classic_editor' );
 function sek_print_edit_with_nimble_btn_for_classic_editor( $post ) {
+  if ( !sek_current_user_can_access_nb_ui() )
+    return;
   if ( is_object($post) && sek_is_forbidden_post_type_for_nimble_edit_button( $post->post_type ) )
     return;
   $current_screen = get_current_screen();
@@ -583,18 +396,20 @@ function sek_print_edit_with_nimble_btn_for_classic_editor( $post ) {
   if ( did_action( 'enqueue_block_editor_assets' ) ) {
     return;
   }
-  if ( ! sek_current_user_can_edit( $post->ID ) || ! current_user_can( 'customize' ) ) {
+  if ( !sek_current_user_can_edit( $post->ID ) || !current_user_can( 'customize' ) ) {
     return;
   }
   sek_print_nb_btn_edit_with_nimble( 'classic' );
 }
 add_action( 'enqueue_block_editor_assets', '\Nimble\sek_enqueue_js_asset_for_gutenberg_edit_button');
 function sek_enqueue_js_asset_for_gutenberg_edit_button() {
+    if ( !sek_current_user_can_access_nb_ui() )
+      return;
     $current_screen = get_current_screen();
     if ( 'post' !== $current_screen->base )
       return;
     $post = get_post();
-    if ( ! sek_current_user_can_edit( $post->ID ) || ! current_user_can( 'customize' ) ) {
+    if ( !sek_current_user_can_edit( $post->ID ) || !current_user_can( 'customize' ) ) {
       return;
     }
     wp_enqueue_script(
@@ -611,6 +426,8 @@ function sek_enqueue_js_asset_for_gutenberg_edit_button() {
 }
 add_action( 'admin_footer', '\Nimble\sek_print_js_for_nimble_edit_btn' );
 function sek_print_js_for_nimble_edit_btn() {
+  if ( !sek_current_user_can_access_nb_ui() )
+    return;
   $current_screen = get_current_screen();
   if ( 'post' !== $current_screen->base )
     return;
@@ -618,7 +435,7 @@ function sek_print_js_for_nimble_edit_btn() {
   $post = get_post();
   if ( is_object($post) && sek_is_forbidden_post_type_for_nimble_edit_button( $post->post_type ) )
     return;
-  if ( ! sek_current_user_can_edit( $post->ID ) || ! current_user_can( 'customize' ) ) {
+  if ( !sek_current_user_can_edit( $post->ID ) || !current_user_can( 'customize' ) ) {
     return;
   }
   ?>
@@ -659,10 +476,12 @@ function sek_print_js_for_nimble_edit_btn() {
   <?php
 }
 function sek_print_nb_btn_edit_with_nimble( $editor_type ) {
+    if ( !sek_current_user_can_access_nb_ui() )
+      return;
     $post = get_post();
     $manually_built_skope_id = strtolower( NIMBLE_SKOPE_ID_PREFIX . 'post_' . $post->post_type . '_' . $post->ID );
     $customize_url = sek_get_customize_url_when_is_admin( $post );
-    if ( ! empty( $customize_url ) ) {
+    if ( !empty( $customize_url ) ) {
         $customize_url = add_query_arg(
             array( 'autofocus' => array( 'section' => '__content_picker__' ) ),
             $customize_url
@@ -684,7 +503,7 @@ function sek_print_nb_btn_edit_with_nimble( $editor_type ) {
 function sek_current_user_can_edit( $post_id = 0 ) {
     $post = get_post( $post_id );
 
-    if ( ! $post ) {
+    if ( !$post ) {
       return false;
     }
     if ( 'trash' === get_post_status( $post_id ) ) {
@@ -692,11 +511,11 @@ function sek_current_user_can_edit( $post_id = 0 ) {
     }
     $post_type_object = get_post_type_object( $post->post_type );
 
-    if ( ! isset( $post_type_object->cap->edit_post ) ) {
+    if ( !isset( $post_type_object->cap->edit_post ) ) {
       return false;
     }
     $edit_cap = $post_type_object->cap->edit_post;
-    if ( ! current_user_can( $edit_cap, $post_id ) ) {
+    if ( !current_user_can( $edit_cap, $post_id ) ) {
       return false;
     }
     if ( get_option( 'page_for_posts' ) === $post_id ) {
@@ -706,6 +525,8 @@ function sek_current_user_can_edit( $post_id = 0 ) {
 }
 add_filter( 'display_post_states', '\Nimble\sek_add_nimble_post_state', 10, 2 );
 function sek_add_nimble_post_state( $post_states, $post ) {
+    if ( !sek_current_user_can_access_nb_ui() )
+      return $post_states;
     $manually_built_skope_id = strtolower( NIMBLE_SKOPE_ID_PREFIX . 'post_' . $post->post_type . '_' . $post->ID );
     if ( $post && current_user_can( 'edit_post', $post->ID ) && sek_local_skope_has_nimble_sections( $manually_built_skope_id ) ) {
         $post_states['nimble'] = __( 'Nimble Builder', 'nimble-builder' );
@@ -715,6 +536,8 @@ function sek_add_nimble_post_state( $post_states, $post ) {
 add_filter( 'post_row_actions', '\Nimble\sek_filter_post_row_actions', 11, 2 );
 add_filter( 'page_row_actions', '\Nimble\sek_filter_post_row_actions', 11, 2 );
 function sek_filter_post_row_actions( $actions, $post ) {
+    if ( !sek_current_user_can_access_nb_ui() )
+      return $actions;
     $manually_built_skope_id = strtolower( NIMBLE_SKOPE_ID_PREFIX . 'post_' . $post->post_type . '_' . $post->ID );
     if ( $post && current_user_can( 'edit_post', $post->ID ) && sek_local_skope_has_nimble_sections( $manually_built_skope_id ) ) {
         $actions['edit_with_nimble_builder'] = sprintf( '<a href="%1$s" title="%2$s">%2$s</a>',
@@ -723,4 +546,75 @@ function sek_filter_post_row_actions( $actions, $post ) {
         );
     }
     return $actions;
+}
+function sek_get_raw_html_from_skope_id( $skope_id = '' ) {
+    $html = '';
+    if ( empty( $skope_id ) )
+      return $html;
+    sek_register_modules_when_not_customizing_and_not_ajaxing( $skope_id );
+    ob_start();
+    foreach ( sek_get_locations() as $loc_id => $loc_params ) {
+        $loc_params = is_array($loc_params) ? $loc_params : array();
+        $loc_params = wp_parse_args( $loc_params, array('is_header_location' => false, 'is_footer_location' => false ) );
+        if ( $loc_params['is_header_location'] || $loc_params['is_footer_location'] )
+          continue;
+        Nimble_Manager()->_render_seks_for_location( $loc_id, array(), $skope_id );
+    }
+    $html = ob_get_clean();
+    $html = preg_replace('#<script(.*?)>(.*?)</script>#is', '', $html);
+    $html = apply_filters( 'the_content', $html );
+    $html = preg_replace('/>\s*</', '><', $html);//https://stackoverflow.com/questions/466437/minifying-html
+    return $html;
+}
+add_action( 'wp_ajax_sek_get_nimble_content_for_yoast', '\Nimble\sek_ajax_get_nimble_content_for_yoast' );
+function sek_ajax_get_nimble_content_for_yoast() {
+    if ( !is_user_logged_in() ) {
+        wp_send_json_error( __FUNCTION__ . ' error => unauthenticated' );
+    }
+    if ( !isset( $_POST['skope_id'] ) || empty( $_POST['skope_id'] ) ) {
+        wp_send_json_error( __FUNCTION__ . ' error => missing skope_id' );
+    }
+    $html = sek_get_raw_html_from_skope_id( $_POST['skope_id'] );
+    wp_send_json_success($html);
+}
+
+add_action( 'admin_footer', '\Nimble\sek_print_js_for_yoast_analysis' );
+function sek_print_js_for_yoast_analysis() {
+    if ( !defined( 'WPSEO_VERSION' ) )
+      return;
+    $current_screen = get_current_screen();
+    if ( 'post' !== $current_screen->base )
+      return;
+    $post = get_post();
+    $manually_built_skope_id = strtolower( NIMBLE_SKOPE_ID_PREFIX . 'post_' . $post->post_type . '_' . $post->ID );
+    ?>
+    <script id="nimble-add-content-to-yoast-analysis">
+        jQuery(function($){
+            var NimblePlugin = function() {
+                YoastSEO.app.registerPlugin( 'nimblePlugin', {status: 'loading'} );
+                wp.ajax.post( 'sek_get_nimble_content_for_yoast', {
+                    skope_id : '<?php echo $manually_built_skope_id; ?>'
+                }).done( function( nimbleContent ) {
+                    YoastSEO.app.pluginReady('nimblePlugin');
+                    YoastSEO.app.registerModification( 'content', function(originalContent) { return originalContent + nimbleContent; }, 'nimblePlugin', 5 );
+                }).fail( function( er ) {
+                    console.log('NimblePlugin for Yoast => error when fetching Nimble content.');
+                });
+            }
+            $(window).on('YoastSEO:ready', function() {
+                try { new NimblePlugin(); } catch(er){ console.log('Yoast NimblePlugin error', er );}
+            });
+        });
+    </script>
+    <?php
+}
+add_filter('seopress_content_analysis_content', '\Nimble\sek_add_content_to_seopress_analyser', 10, 2);
+function sek_add_content_to_seopress_analyser($content, $id) {
+    $post = get_post($id);
+    if ( is_wp_error($post) || !$post || !is_object($post) )
+      return $content;
+
+    $manually_built_skope_id = strtolower( NIMBLE_SKOPE_ID_PREFIX . 'post_' . $post->post_type . '_' . $post->ID );
+    $nb_content = sek_get_raw_html_from_skope_id( $manually_built_skope_id );
+    return is_string($nb_content) ? $content.$nb_content : $content;
 }
