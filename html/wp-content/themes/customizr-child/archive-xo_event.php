@@ -11,6 +11,7 @@ function doCalendarShortcode() {
 	echo do_shortcode( "[xo_event_calendar year=$year month=$month months=$months categories=$categories navigation=false]" );
 }
 
+
 add_action( '__before_loop', function () {
 	do_action( '__before_pills' );
 	?>
